@@ -1,0 +1,127 @@
+MODEL:
+  PRETRAIN_CHOICE: 'imagenet' # imagenet
+  PRETRAIN_PATH: "/home/nihao/data/checkpoints" # root of pretrain path
+  METRIC_LOSS_TYPE: 'triplet'
+  IF_LABELSMOOTH: 'on'
+  IF_WITH_CENTER: 'no'
+  NAME: 'distill_vit' # local_attention_vit, mask_vit, mae, DG_ssl_vit, color_vit, rotate_vit, resnet50, ibnnet50, vit, distill_vit
+  NO_MARGIN: True
+  DEVICE_ID: ('2')
+  TRANSFORMER_TYPE: 'vit_base_patch16_224_TransReID' # vit_large_patch16_224_TransReID, vit_base_patch16_224_TransReID, vit_base_patch32_224_TransReID, deit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID, deit_tiny_patch16_224_TransReID, swin_base_patch4_window7_224, swin_small_patch4_window7_224, dhvt_tiny_patch16, dhvt_small_patch16
+  STRIDE_SIZE: 16
+  DROP_PATH: 0.1 ###### avoid overfitting
+  # FREEZE_PATCH_EMBED: True
+  # FIXED_RES_BN: True
+  NORM:
+    TYPE: 'LN'
+
+############ DISTILL settings ############
+  DISTILL:
+    DO_DISTILL: True
+    LAMBDA: 0.2
+    NUM_SELECT_BLOCK: 1
+    START_EPOCH: 1
+    LOSS_TYPE: 'EUC'
+    IF_HEAD: False
+    IF_DEEP_SUPERVISE: False
+############ DISTILL settings ############
+
+############decoder settings############
+  DECODER:
+    DIM: 384
+    DEPTH: 4
+    NUM_HEAD: 8
+    MLP_RATIO: 4.
+    NORM: 'LN'
+############decoder settings############
+
+
+# #################pc loss#################
+  PC_LOSS: True
+  PC_SCALE: 0.02
+  PC_LR: 1.0 ######################## try this
+
+  PART_NUM: 2
+
+  CLUSTER_K: 10
+# #################pc loss#################
+
+INPUT:
+  SIZE_TRAIN: [256,128]
+  SIZE_TEST: [256,128]
+  # SIZE_TRAIN: [224,224] ### for swin
+  # SIZE_TEST: [224,224]  ### for swin
+  REA:
+    # ENABLED: True
+    PROB: 0.5
+  MASK:
+    # ENABLED: True
+    RATIO: 0.25
+  PIXEL_MEAN: [0.5, 0.5, 0.5]
+  PIXEL_STD: [0.5, 0.5, 0.5]
+  LGT: # Local Grayscale Transfomation
+    # DO_LGT: True
+    PROB: 0.5
+  ROTATE:
+    # DO_ROTATE: True
+    PROB: 0.25
+
+DATASETS:
+  # TRAIN: ('Market1501',)
+  TRAIN: ('DG_Market1501', 'DG_CUHK02', 'DG_CUHK03_detected', 'DG_CUHK_SYSU',) # multi
+  # TRAIN: ('PACS',)
+  # TEST: ('PACS',)
+  # TEST: ("DukeMTMC", "CUHK03", "Market1501", "MSMT17") # DukeMTMC
+  TEST: ("DG_GRID", "DG_VIPeR", "DG_PRID", "DG_iLIDS", ) # multi
+  ROOT_DIR: ('/home/nihao/data') # root of datasets
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'
+  NUM_INSTANCE: 4
+  # NUM_INSTANCE: 9 ##### PACS
+  NUM_WORKERS: 8
+
+SOLVER:
+  OPTIMIZER_NAME: 'SGD'
+  # OPTIMIZER_NAME: 'SAM'
+  MAX_EPOCHS: 60
+  BASE_LR: 0.001 # 0.0004 for msmt
+  IMS_PER_BATCH: 64
+  # IMS_PER_BATCH: 63 ########PACS
+  WARMUP_METHOD: 'linear'
+  LARGE_FC_LR: False
+  CHECKPOINT_PERIOD: 5
+  LOG_PERIOD: 60
+  EVAL_PERIOD: 5
+  VIS_PERIOD: 1
+  WEIGHT_DECAY:  1e-4
+  WEIGHT_DECAY_BIAS: 1e-4
+  BIAS_LR_FACTOR: 2
+  SEED: 1234
+  # RESUME: True
+  # RESUME_PATH: "/home/nihao/data/exp/vit-b-16-lr0.001/market/vit_60.pth"
+
+TEST:
+  EVAL: True
+  IMS_PER_BATCH: 128
+  RE_RANKING: False
+  # WEIGHT: '/home/nihao/data/exp/debug/vit_60.pth'
+  NECK_FEAT: 'after'
+  FEAT_NORM: True
+
+LOG_ROOT: '/home/nihao/data/exp/' # root of log file
+TB_LOG_ROOT: './tb_log/'
+# LOG_NAME: 'SGD/msmt/vit_base_dpr0.0'
+# LOG_NAME: 'debug'
+# LOG_NAME: 'DG_ssl_vit/deit_small/mask50_200epoch'
+# LOG_NAME: 'PAT/vit_base/duke/part_num3_adapt_30'
+# LOG_NAME: 'debug_200epochs_5times_l1_loss'
+LOG_NAME: 'vit_hint_euc_0.2_1block/multi_source'
+# LOG_NAME: 'vit_drop_1layer_norm'
+# LOG_NAME: 'vit_base_tail_IN_affine'
+# LOG_NAME: 'vit_hint_euc_0.4_1block_fix_PE'
+# LOG_NAME: 'PAT/part_num_test_for_rebuttal/vit_base_2'
+# LOG_NAME: 'dhvt_tiny_patch16_lr0.01_120epoch'
+# LOG_NAME: 'resnet_repalce_BN_with_GN_C_divide_2'
+# LOG_NAME: 'resnet_add_IN'
+# LOG_NAME: 'vit_jump_last_block_LN_BN_IN'
