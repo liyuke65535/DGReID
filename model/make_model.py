@@ -5,6 +5,7 @@ from einops import rearrange
 from model.backbones.DHVT import dhvt_small_imagenet_patch16, dhvt_tiny_imagenet_patch16
 from model.backbones.mae import PretrainVisionTransformerDecoder, color_vit_decoder, get_sinusoid_encoding_table, mask_vit_decoder, pretrain_mae_base_patch16_224
 from model.backbones.normalizations import BatchNorm, InstanceNorm
+from model.backbones.prompt_vit import deit_small_patch16_224_prompt_vit, deit_tiny_patch16_224_prompt_vit, vit_base_patch16_224_prompt_vit, vit_base_patch32_224_prompt_vit, vit_large_patch16_224_prompt_vit, vit_small_patch16_224_prompt_vit
 from model.backbones.swin_transformer import swin_base_patch4_window7_224, swin_small_patch4_window7_224
 # from threading import local
 from model.backbones.vit_pytorch import DistillViT, TransReID, deit_tiny_patch16_224_TransReID, local_attention_deit_small, local_attention_deit_tiny, local_attention_vit_base, local_attention_vit_base_p32, local_attention_vit_large, local_attention_vit_small, mask_vit_base, vit_base_patch32_224_TransReID, vit_large_patch16_224_TransReID
@@ -27,6 +28,16 @@ __factory_T_type = {
     'swin_small_patch4_window7_224': swin_small_patch4_window7_224,
     'dhvt_tiny_patch16': dhvt_tiny_imagenet_patch16,
     'dhvt_small_patch16': dhvt_small_imagenet_patch16
+}
+
+__factory_PT_type = {
+    'vit_large_patch16_224_prompt_vit': vit_large_patch16_224_prompt_vit,
+    'vit_base_patch16_224_prompt_vit': vit_base_patch16_224_prompt_vit,
+    'vit_base_patch32_224_prompt_vit': vit_base_patch32_224_prompt_vit,
+    'deit_base_patch16_224_prompt_vit': vit_base_patch16_224_prompt_vit,
+    'vit_small_patch16_224_prompt_vit': vit_small_patch16_224_prompt_vit,
+    'deit_small_patch16_224_prompt_vit': deit_small_patch16_224_prompt_vit,
+    'deit_tiny_patch16_224_prompt_vit': deit_tiny_patch16_224_prompt_vit,
 }
 
 __factory_LAT_type = {
@@ -197,7 +208,16 @@ imagenet_path_name = {
     'deit_base_patch16_224_TransReID': 'deit_base_distilled_patch16_224-df68dfff.pth',
     'vit_small_patch16_224_TransReID': 'vit_small_p16_224-15ec54c9.pth',
     'deit_small_patch16_224_TransReID': 'deit_small_distilled_patch16_224-649709d9.pth',
-    'deit_tiny_patch16_224_TransReID': 'deit_tiny_distilled_patch16_224-b40b3cf7.pth', 'swin_base_patch4_window7_224': 'swin_base_patch4_window7_224_22k.pth', 'swin_small_patch4_window7_224': 'swin_small_patch4_window7_224_22k.pth'
+    'deit_tiny_patch16_224_TransReID': 'deit_tiny_distilled_patch16_224-b40b3cf7.pth', 
+    'vit_large_patch16_224_prompt_vit': 'jx_vit_large_p16_224-4ee7a4dc.pth',
+    'vit_base_patch16_224_prompt_vit': 'jx_vit_base_p16_224-80ecf9dd.pth',
+    'vit_base_patch32_224_prompt_vit': 'jx_vit_base_patch32_224_in21k-8db57226.pth',
+    'deit_base_patch16_224_prompt_vit': 'deit_base_distilled_patch16_224-df68dfff.pth',
+    'vit_small_patch16_224_prompt_vit': 'vit_small_p16_224-15ec54c9.pth',
+    'deit_small_patch16_224_prompt_vit': 'deit_small_distilled_patch16_224-649709d9.pth',
+    'deit_tiny_patch16_224_prompt_vit': 'deit_tiny_distilled_patch16_224-b40b3cf7.pth',
+    'swin_base_patch4_window7_224': 'swin_base_patch4_window7_224_22k.pth', 
+    'swin_small_patch4_window7_224': 'swin_small_patch4_window7_224_22k.pth',
 }
 
 norm_layer = {
@@ -217,6 +237,13 @@ in_plane_dict = {
     'swin_small_patch4_window7_224': 768,
     'vit_large_patch16_224_TransReID': 1024,
     'swin_base_patch4_window7_224': 1024,
+    'vit_large_patch16_224_prompt_vit': 1024,
+    'vit_base_patch16_224_prompt_vit': 768,
+    'vit_base_patch32_224_prompt_vit': 768,
+    'deit_base_patch16_224_prompt_vit': 768,
+    'vit_small_patch16_224_prompt_vit': 768,
+    'deit_small_patch16_224_prompt_vit': 384,
+    'deit_tiny_patch16_224_prompt_vit': 192,
 }
 
 class build_vit(nn.Module):
@@ -262,6 +289,70 @@ class build_vit(nn.Module):
 
     def forward(self, x):
         x = self.base(x) # B, N, C
+        global_feat = x[:, 0] # cls token for global feature
+
+        feat = self.bottleneck(global_feat)
+
+        if self.training:
+            cls_score = self.classifier(feat)
+            return cls_score, global_feat
+        else:
+            return feat if self.neck_feat == 'after' else global_feat
+
+    def load_param(self, trained_path):
+        param_dict = torch.load(trained_path)
+        count = 0
+        for i in param_dict:
+            if 'classifier' in i: # drop classifier
+                continue
+            # if 'bottleneck' in i:
+            #     continue
+            if i in self.state_dict().keys():
+                self.state_dict()[i].copy_(param_dict[i])
+                count += 1
+        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
+
+    def load_param_finetune(self, model_path):
+        param_dict = torch.load(model_path)
+        for i in param_dict:
+            self.state_dict()[i].copy_(param_dict[i])
+        print('Loading pretrained model for finetuning from {}'.format(model_path))
+
+    def compute_num_params(self):
+        total = sum([param.nelement() for param in self.parameters()])
+        logger = logging.getLogger('reid.train')
+        logger.info("Number of parameter: %.2fM" % (total/1e6))
+
+class build_prompt_vit(nn.Module):
+    def __init__(self, num_classes, cfg, factory):
+        super().__init__()
+        self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
+        self.num_classes = num_classes
+        self.neck_feat = cfg.TEST.FEAT_NORM
+        self.num_block = cfg.MODEL.DISTILL.NUM_SELECT_BLOCK
+        self.if_head = cfg.MODEL.DISTILL.IF_HEAD
+        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](
+            img_size=cfg.INPUT.SIZE_TRAIN,
+            stride_size=cfg.MODEL.STRIDE_SIZE,
+            drop_path_rate=cfg.MODEL.DROP_PATH,
+            drop_rate= cfg.MODEL.DROP_OUT,
+            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+            num_domains=cfg.DATASETS.NUM_DOMAINS)
+
+        model_path_base = cfg.MODEL.PRETRAIN_PATH
+        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+        model_path = os.path.join(model_path_base, path)
+        self.base.load_param(model_path)
+        print('Loading pretrained ImageNet model......from {}'.format(model_path))
+
+        self.bottleneck = nn.BatchNorm1d(self.in_planes) 
+        self.bottleneck.bias.requires_grad_(False)
+        self.bottleneck.apply(weights_init_kaiming)
+        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier.apply(weights_init_classifier)
+        
+    def forward(self, x, domain=None):
+        x = self.base(x, domain) # B, N, C
         global_feat = x[:, 0] # cls token for global feature
 
         feat = self.bottleneck(global_feat)
@@ -1009,6 +1100,9 @@ def make_model(cfg, modelname, num_class, sd_flag=False, head_flag=False, camera
     elif modelname == 'distill_vit':
         model = build_distill_vit(num_class, cfg, __factory_T_type)
         print('===========building distill vit===========')
+    elif modelname == 'prompt_vit':
+        model = build_prompt_vit(num_class, cfg, __factory_PT_type)
+        print('===========building prompt vit===========')
     # elif modelname == 'mask_vit':
     #     model = build_mask_vit(num_class, cfg, __factory_T_type)
     #     print('===========building mask vit===========')

@@ -4,10 +4,10 @@ MODEL:
   METRIC_LOSS_TYPE: 'triplet'
   IF_LABELSMOOTH: 'on'
   IF_WITH_CENTER: 'no'
-  NAME: 'distill_vit' # local_attention_vit, mask_vit, mae, DG_ssl_vit, color_vit, rotate_vit, resnet50, ibnnet50, vit, distill_vit
+  NAME: 'prompt_vit' # local_attention_vit, mask_vit, mae, DG_ssl_vit, color_vit, rotate_vit, resnet50, ibnnet50, vit, distill_vit, prompt_vit
   NO_MARGIN: True
-  DEVICE_ID: ('2')
-  TRANSFORMER_TYPE: 'vit_base_patch16_224_TransReID' # vit_large_patch16_224_TransReID, vit_base_patch16_224_TransReID, vit_base_patch32_224_TransReID, deit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID, deit_tiny_patch16_224_TransReID, swin_base_patch4_window7_224, swin_small_patch4_window7_224, dhvt_tiny_patch16, dhvt_small_patch16
+  DEVICE_ID: ('3')
+  TRANSFORMER_TYPE: 'vit_base_patch16_224_prompt_vit' # vit_large_patch16_224_TransReID, vit_base_patch16_224_TransReID, vit_base_patch32_224_TransReID, deit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID, deit_tiny_patch16_224_TransReID, swin_base_patch4_window7_224, swin_small_patch4_window7_224, dhvt_tiny_patch16, dhvt_small_patch16
   STRIDE_SIZE: 16
   DROP_PATH: 0.1 ###### avoid overfitting
   # FREEZE_PATCH_EMBED: True
@@ -17,7 +17,7 @@ MODEL:
 
 ############ DISTILL settings ############
   DISTILL:
-    DO_DISTILL: True
+    # DO_DISTILL: True
     LAMBDA: 0.2
     NUM_SELECT_BLOCK: 1
     START_EPOCH: 1
@@ -67,12 +67,12 @@ INPUT:
     PROB: 0.25
 
 DATASETS:
-  # TRAIN: ('Market1501',)
-  TRAIN: ('DG_Market1501', 'DG_CUHK02', 'DG_CUHK03_detected', 'DG_CUHK_SYSU',) # multi
+  TRAIN: ('Market1501',)
+  # TRAIN: ('DG_Market1501', 'DG_CUHK02', 'DG_CUHK03_detected', 'DG_CUHK_SYSU',) # multi
   # TRAIN: ('PACS',)
   # TEST: ('PACS',)
-  # TEST: ("DukeMTMC", "CUHK03", "Market1501", "MSMT17") # DukeMTMC
-  TEST: ("DG_GRID", "DG_VIPeR", "DG_PRID", "DG_iLIDS", ) # multi
+  TEST: ("DukeMTMC", "CUHK03", "Market1501", "MSMT17") # DukeMTMC
+  # TEST: ("DG_GRID", "DG_VIPeR", "DG_PRID", "DG_iLIDS", ) # multi
   ROOT_DIR: ('/home/nihao/data') # root of datasets
 
 DATALOADER:
@@ -80,6 +80,7 @@ DATALOADER:
   NUM_INSTANCE: 4
   # NUM_INSTANCE: 9 ##### PACS
   NUM_WORKERS: 8
+  CAMERA_TO_DOMAIN: True
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD'
@@ -116,12 +117,12 @@ TB_LOG_ROOT: './tb_log/'
 # LOG_NAME: 'DG_ssl_vit/deit_small/mask50_200epoch'
 # LOG_NAME: 'PAT/vit_base/duke/part_num3_adapt_30'
 # LOG_NAME: 'debug_200epochs_5times_l1_loss'
-LOG_NAME: 'vit_hint_euc_0.2_1block/multi_source'
+# LOG_NAME: 'vit_hint_euc_0.2_1block/multi_source'
 # LOG_NAME: 'vit_drop_1layer_norm'
 # LOG_NAME: 'vit_base_tail_IN_affine'
 # LOG_NAME: 'vit_hint_euc_0.4_1block_fix_PE'
 # LOG_NAME: 'PAT/part_num_test_for_rebuttal/vit_base_2'
 # LOG_NAME: 'dhvt_tiny_patch16_lr0.01_120epoch'
 # LOG_NAME: 'resnet_repalce_BN_with_GN_C_divide_2'
-# LOG_NAME: 'resnet_add_IN'
-# LOG_NAME: 'vit_jump_last_block_LN_BN_IN'
+# LOG_NAME: 'vit_lr0.0004/multi_source'
+LOG_NAME: 'prompt_vit/domain_prompts/noparam_for_prompt_tokens'

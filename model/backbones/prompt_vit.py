@@ -14,15 +14,30 @@ import torch.nn.functional as F
 import collections.abc as container_abcs
 from einops import rearrange
 
-from model.backbones.vit_pytorch import Block, PatchEmbed_overlap, resize_pos_embed, trunc_normal_
+from model.backbones.vit_pytorch import Block, PatchEmbed_overlap, trunc_normal_
 
 int_classes = int
 string_classes = str
 
 
+def resize_pos_embed(posemb, posemb_new, hight, width, prompt_len=None):
+    ntok_new = posemb_new.shape[1]
+
+    posemb_token, posemb_grid = posemb[:, :1], posemb[0, 1:]
+    ntok_new -= 1
+
+    gs_old = int(math.sqrt(len(posemb_grid)))
+    print('Resized position embedding from size:{} to size: {} with height:{} width: {}'.format(posemb.shape, posemb_new.shape, hight, width))
+    posemb_grid = posemb_grid.reshape(1, gs_old, gs_old, -1).permute(0, 3, 1, 2)
+    posemb_grid = F.interpolate(posemb_grid, size=(hight, width), mode='bilinear')
+    posemb_grid = posemb_grid.permute(0, 2, 3, 1).reshape(1, hight * width, -1)
+    posemb = torch.cat([posemb_token, posemb_grid], dim=1)
+    return posemb
+
+
 class prompt_vit(nn.Module):
     def __init__(self, img_size=224, patch_size=16, stride_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
-                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm, prompt_length=4, domain_num=1, **kwargs):
+                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm, prompt_length=4, **kwargs):
         super().__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
@@ -34,12 +49,10 @@ class prompt_vit(nn.Module):
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         ##### for domain prompt
-        if domain_num == 1:
-            print("=============!!! D_num = 1 !!!=============")
-        self.domain_tokens = nn.Parameter(torch.zeros(domain_num, prompt_length, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + prompt_length + 1, embed_dim))
-
-        
+        num_domains = kwargs['num_domains']
+        print("=============number of domains = {}=============".format(num_domains))
+        self.domain_tokens = nn.Parameter(torch.zeros(num_domains, prompt_length, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
 
         print('using drop_out rate is : {}'.format(drop_rate))
         print('using attn_drop_out rate is : {}'.format(attn_drop_rate))
@@ -60,6 +73,7 @@ class prompt_vit(nn.Module):
         self.fc = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
         trunc_normal_(self.cls_token, std=.02)
         trunc_normal_(self.pos_embed, std=.02)
+        trunc_normal_(self.domain_tokens, std=.02)
 
         self.apply(self._init_weights)
 
@@ -83,15 +97,20 @@ class prompt_vit(nn.Module):
         self.num_classes = num_classes
         self.fc = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-    def forward_features(self, x, domain):
+    def forward_features(self, x, domain=None):
         B = x.shape[0]
         x = self.patch_embed(x)
 
         cls_tokens = self.cls_token.expand(B, -1, -1)
-        prompts = self.domain_tokens[domain].unsqueeze(0).expand(B, -1, -1)
-        x = torch.cat((cls_tokens, x, prompts), dim=1)
-
+        x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
+        
+        if self.training:
+            prompts = self.domain_tokens[domain]
+            x = torch.cat((x, prompts), dim=1)
+        else: ###### easily fuse tokens learned from all domains
+            prompts = torch.cat(self.domain_tokens, dim=1)
+            x = torch.cat((x, prompts), dim=1)
 
         x = self.pos_drop(x)
 
@@ -103,8 +122,8 @@ class prompt_vit(nn.Module):
         # return x[:, 0]
         return x # (B, N, C)
 
-    def forward(self, x):
-        x = self.forward_features(x)
+    def forward(self, x, domain):
+        x = self.forward_features(x, domain=domain)
         return x
 
     def load_param(self, model_path):
@@ -139,3 +158,50 @@ class prompt_vit(nn.Module):
         total = sum([param.nelement() for param in self.parameters()])
         # print("Number of parameter: %.2fM" % (total/1e6))
         return total/1e6
+    
+def vit_large_patch16_224_prompt_vit(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm='LN', **kwargs):
+    model = prompt_vit(
+        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,\
+        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
+        norm_name=norm, **kwargs)
+
+    return model
+
+def vit_base_patch16_224_prompt_vit(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm='LN', **kwargs):
+    model = prompt_vit(
+        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,\
+        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
+        norm_name=norm, **kwargs)
+
+    return model
+
+def vit_base_patch32_224_prompt_vit(img_size=(256, 128), stride_size=32, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm='LN', **kwargs):
+    model = prompt_vit(
+        img_size=img_size, patch_size=32, stride_size=stride_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,\
+        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
+        norm_name=norm, **kwargs)
+
+    return model
+
+def vit_small_patch16_224_prompt_vit(img_size=(256, 128), stride_size=16, drop_rate=0., attn_drop_rate=0.,drop_path_rate=0.1, norm='LN', **kwargs):
+    kwargs.setdefault('qk_scale', 768 ** -0.5)
+    model = prompt_vit(
+        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=768, depth=8, num_heads=8,  mlp_ratio=3., qkv_bias=False, drop_path_rate = drop_path_rate,\
+        drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
+        norm_name=norm, **kwargs)
+
+    return model
+
+def deit_small_patch16_224_prompt_vit(img_size=(256, 128), stride_size=16, drop_path_rate=0.0, drop_rate=0.0, attn_drop_rate=0.0, norm='LN', **kwargs):
+    model = prompt_vit(
+        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
+        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate, norm_name=norm, **kwargs)
+
+    return model
+
+def deit_tiny_patch16_224_prompt_vit(img_size=(256, 128), stride_size=16, drop_path_rate=0.0, drop_rate=0.0, attn_drop_rate=0.0, norm='LN', **kwargs):
+    model = prompt_vit(
+        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
+        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate, norm_name=norm, **kwargs)
+
+    return model

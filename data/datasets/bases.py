@@ -156,12 +156,12 @@ class ImageDataset(Dataset):
 
     def show_train(self):
         logger = logging.getLogger('reid')
-        num_train_pids, num_train_cams = self.parse_data(self.train)
+        num_train_pids, self.num_train_cams = self.parse_data(self.train)
         logger.info('=> Loaded {}'.format(self.__class__.__name__))
         logger.info('  ----------------------------------------')
         logger.info('  subset   | # ids | # images | # cameras')
         logger.info('  ----------------------------------------')
-        logger.info('  train    | {:5d} | {:8d} | {:9d}'.format(num_train_pids, len(self.train), num_train_cams))
+        logger.info('  train    | {:5d} | {:8d} | {:9d}'.format(num_train_pids, len(self.train), self.num_train_cams))
         logger.info('  ----------------------------------------')
 
     def show_test(self):

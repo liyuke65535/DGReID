@@ -4,6 +4,7 @@ from processor.local_attn_vit_processor import local_attention_vit_do_train_with
 from processor.mae_processor import mae_do_train_with_amp
 from processor.mask_vit_processor import mask_vit_do_train_with_amp
 from processor.ori_vit_processor_with_amp import ori_vit_do_train_with_amp
+from processor.prompt_vit_processor_with_amp import prompt_vit_do_train_with_amp
 from processor.rotate_vit_processor import rotate_vit_do_train_with_amp
 from processor.sam_processor import sam_do_train
 from processor.ssl_vit_processor import ssl_vit_do_train_with_amp
@@ -72,7 +73,10 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
     # build DG train loader
-    train_loader = build_reid_train_loader(cfg)
+    train_loader, num_domains = build_reid_train_loader(cfg)
+    cfg.defrost()
+    cfg.DATASETS.NUM_DOMAINS = num_domains
+    cfg.freeze()
     # build DG validate loader
     val_name = cfg.DATASETS.TEST[0]
     val_loader, num_query = build_reid_test_loader(cfg, val_name)
@@ -111,6 +115,7 @@ if __name__ == '__main__':
         'DG_ssl_vit': ssl_vit_do_train_with_amp,
         "color_vit": color_vit_do_train_with_amp,
         "rotate_vit": rotate_vit_do_train_with_amp,
+        "prompt_vit": prompt_vit_do_train_with_amp,
     }
     if cfg.MODEL.DISTILL.DO_DISTILL:
         Distill_do_train(
@@ -147,8 +152,6 @@ if __name__ == '__main__':
                 scheduler,
                 loss_func,
                 num_query, args.local_rank,
-                patch_centers = patch_centers,
-                pc_criterion = pc_criterion,
             )
         else:
             ori_vit_do_train_with_amp(

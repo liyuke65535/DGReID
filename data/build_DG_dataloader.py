@@ -73,7 +73,12 @@ def build_reid_train_loader(cfg):
         flag2=cfg.DATALOADER.DELETE_REM,
         cfg = cfg)
 
-    return train_loader
+    if len(cfg.DATASETS.TRAIN) == 1 and cfg.DATALOADER.CAMERA_TO_DOMAIN:
+        num_domains = dataset.num_train_cams
+    else:
+        num_domains = len(cfg.DATASETS.TRAIN)
+
+    return train_loader, num_domains
 
 
 def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False):
