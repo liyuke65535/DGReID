@@ -3,5 +3,6 @@
 1. self-distillation for ViT.
 2. part-aware transformer for generalization.
 3. shape-awareness minimization (SAM) for flatter convergence.
+4. mixstyle and other domain mix methods.
 
 updating ... ...
