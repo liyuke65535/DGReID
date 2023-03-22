@@ -30,6 +30,8 @@ _C.MODEL.DEVICE_ID = '0'
 _C.MODEL.NAME = 'vit'
 # Last stride of backbone
 _C.MODEL.LAST_STRIDE = 1
+# feature dim of the model
+_C.MODEL.DIM = 768
 # Path to pretrained model of backbone
 _C.MODEL.PRETRAIN_PATH = ""
 
@@ -97,6 +99,7 @@ _C.MODEL.NORM.TYPE = 'LN'
 
 # hint & SD settings
 _C.MODEL.DISTILL = CN()
+_C.MODEL.DISTILL.DO_XDED = False
 _C.MODEL.DISTILL.DO_DISTILL = False
 _C.MODEL.DISTILL.LAMBDA = 0.2 ## percentage of SD losses.
 _C.MODEL.DISTILL.NUM_SELECT_BLOCK = 1
@@ -169,6 +172,8 @@ _C.DATASETS.TEST = ('DukeMTMC',)
 _C.DATASETS.ROOT_DIR = ('../data')
 # combine both train and test sets
 _C.DATASETS.COMBINEALL = False
+# _C.DATASETS.NUM_DOMAINS = 1
+_C.DATASETS.TEST_ALL = False
 
 
 # -----------------------------------------------------------------------------

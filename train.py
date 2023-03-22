@@ -1,8 +1,10 @@
+from processor.XDED_processor import XDED_vit_do_train_with_amp
 from processor.color_vit_processor import color_vit_do_train_with_amp
 from processor.distill_processor import Distill_do_train
 from processor.local_attn_vit_processor import local_attention_vit_do_train_with_amp
 from processor.mae_processor import mae_do_train_with_amp
 from processor.mask_vit_processor import mask_vit_do_train_with_amp
+from processor.memory_classifier_vit_processor_with_amp import memory_classifier_vit_do_train_with_amp
 from processor.ori_vit_processor_with_amp import ori_vit_do_train_with_amp
 from processor.prompt_vit_processor_with_amp import prompt_vit_do_train_with_amp
 from processor.rotate_vit_processor import rotate_vit_do_train_with_amp
@@ -21,6 +23,10 @@ import os
 import argparse
 from config import cfg
 import loss as Patchloss
+
+# import os
+# os.environ['CUDA_LAUNCH_BLOCKING'] = '1' # 下面老是报错 shape 不一致
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -73,7 +79,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
     # build DG train loader
-    train_loader, num_domains = build_reid_train_loader(cfg)
+    train_loader, num_domains, num_pids = build_reid_train_loader(cfg)
     cfg.defrost()
     cfg.DATASETS.NUM_DOMAINS = num_domains
     cfg.freeze()
@@ -82,7 +88,7 @@ if __name__ == '__main__':
     val_loader, num_query = build_reid_test_loader(cfg, val_name)
     num_classes = len(train_loader.dataset.pids)
     model_name = cfg.MODEL.NAME
-    model = make_model(cfg, modelname=model_name, num_class=num_classes, camera_num=None, view_num=None)
+    model = make_model(cfg, modelname=model_name, num_class=num_classes, num_class_domain_wise=num_pids)
     if cfg.SOLVER.RESUME:
         model.load_param(cfg.SOLVER.RESUME_PATH)
     if cfg.MODEL.FREEZE_PATCH_EMBED and 'resnet' not in cfg.MODEL.NAME and 'ibn' not in cfg.MODEL.NAME: # trick from moco v3
@@ -105,17 +111,45 @@ if __name__ == '__main__':
     pc_criterion = Patchloss.Pedal(scale=cfg.MODEL.PC_SCALE, k=cfg.MODEL.CLUSTER_K).cuda()
     ################## patch loss ##############################
 
+    ################ Memory Loss #################
+    #### memory head
+    import torch.nn.functional as F
+    from model.backbones.memory import MemoryClassifier
+    import collections
+    from model.extract_features import extract_features
+    source_centers_all = []
+    memories = []
+    if cfg.MODEL.NAME == 'mem_vit':
+        for i,testname in enumerate(cfg.DATASETS.TRAIN):
+            sour_cluster_loader, _ = build_reid_test_loader(cfg, testname, bs=256, flag_test=False)
+            source_features, labels = extract_features(model.base, sour_cluster_loader, print_freq=20)
+            sour_fea_dict = collections.defaultdict(list)
+            for k in source_features.keys():
+                sour_fea_dict[labels[k]].append(source_features[k].unsqueeze(0))
+
+            source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
+            source_centers = torch.stack(source_centers, 0)  ## pid,dim
+            source_centers = F.normalize(source_centers, dim=1).cuda()
+            source_centers_all.append(source_centers)
+        
+            curMemo = MemoryClassifier(768, source_centers.shape[0]).cuda()
+            curMemo.features = source_centers
+            curMemo.labels = torch.arange(num_pids[i]).cuda()
+            memories.append(curMemo)
+
+            del source_centers, sour_cluster_loader, sour_fea_dict
+        logger.info("Memories initiation done.") 
     
     do_train_dict = {
         'local_attention_vit': local_attention_vit_do_train_with_amp,
-        'vit': ori_vit_do_train_with_amp,
-        'resnet50': ori_vit_do_train_with_amp,
         'mask_vit': mask_vit_do_train_with_amp,
         'mae': mae_do_train_with_amp,
         'DG_ssl_vit': ssl_vit_do_train_with_amp,
         "color_vit": color_vit_do_train_with_amp,
         "rotate_vit": rotate_vit_do_train_with_amp,
         "prompt_vit": prompt_vit_do_train_with_amp,
+        'XDED_vit': XDED_vit_do_train_with_amp,
+        'mem_vit': memory_classifier_vit_do_train_with_amp,
     }
     if cfg.MODEL.DISTILL.DO_DISTILL:
         Distill_do_train(
@@ -152,6 +186,11 @@ if __name__ == '__main__':
                 scheduler,
                 loss_func,
                 num_query, args.local_rank,
+                patch_centers = patch_centers,
+                pc_criterion = pc_criterion,
+                num_pids=num_pids,
+                memories=memories,
+                sour_centers=source_centers_all
             )
         else:
             ori_vit_do_train_with_amp(
@@ -167,4 +206,7 @@ if __name__ == '__main__':
                 num_query, args.local_rank,
                 patch_centers = patch_centers,
                 pc_criterion = pc_criterion,
+                num_pids = num_pids,
+                memories=memories,
+                sour_centers=source_centers_all
             )

@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import collections.abc as container_abcs
 
-from data.transforms.build import build_transform_local
+# from data.transforms.build import build_transform_local
 # from torch._six import container_abcs, string_classes, int_classes
 int_classes = int
 string_classes = str
@@ -36,6 +36,8 @@ def build_reid_train_loader(cfg):
     camera_all = list()
 
     # load datasets
+    train_pids = []
+    domain_names = []
     for d in cfg.DATASETS.TRAIN:
         if d == 'CUHK03_NP':
             dataset = DATASET_REGISTRY.get('CUHK03')(root=_root, cuhk03_labeled=False)
@@ -49,7 +51,7 @@ def build_reid_train_loader(cfg):
             for i, x in enumerate(dataset.train):
                 add_info = {}  # dictionary
 
-                if cfg.DATALOADER.CAMERA_TO_DOMAIN:
+                if cfg.DATALOADER.CAMERA_TO_DOMAIN and len(cfg.DATASETS.TRAIN) == 1:
                     add_info['domains'] = dataset.train[i][2]
                     camera_all.append(dataset.train[i][2])
                 else:
@@ -58,9 +60,11 @@ def build_reid_train_loader(cfg):
                 dataset.train[i].append(add_info)
                 dataset.train[i] = tuple(dataset.train[i])
         domain_idx += 1
+        domain_names.append(dataset.dataset_name)
         train_items.extend(dataset.train)
+        train_pids.append(dataset.get_num_pids(dataset.train))
 
-    train_set = CommDataset(cfg, train_items, train_transforms, relabel=True)
+    train_set = CommDataset(cfg, train_items, train_transforms, relabel=True, domain_names=domain_names)
 
     train_loader = make_sampler(
         train_set=train_set,
@@ -78,10 +82,10 @@ def build_reid_train_loader(cfg):
     else:
         num_domains = len(cfg.DATASETS.TRAIN)
 
-    return train_loader, num_domains
+    return train_loader, num_domains, train_pids
 
 
-def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False):
+def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None):
     test_transforms = build_transforms(cfg, is_train=False)
 
     if opt is None:
@@ -108,7 +112,7 @@ def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=
 
     test_set = CommDataset(cfg, test_items, test_transforms, relabel=False)
 
-    batch_size = cfg.TEST.IMS_PER_BATCH
+    batch_size = bs if bs is not None else cfg.TEST.IMS_PER_BATCH
     data_sampler = samplers.InferenceSampler(len(test_set))
     batch_sampler = torch.utils.data.BatchSampler(data_sampler, batch_size, False)
 
@@ -154,30 +158,30 @@ def fast_batch_collator(batched_inputs):
     elif isinstance(elem, string_classes):
         return batched_inputs
 
-    elif isinstance(elem, np.ndarray): ###### add by me (for masks)
-        out = []
-        for i, array in enumerate(batched_inputs):
-            tensor = torch.tensor(array)
-            out.append(tensor)
-        out = torch.stack(out, dim=0)
-        return out
+    # elif isinstance(elem, np.ndarray): ###### add by me (for masks)
+    #     out = []
+    #     for i, array in enumerate(batched_inputs):
+    #         tensor = torch.tensor(array)
+    #         out.append(tensor)
+    #     out = torch.stack(out, dim=0)
+    #     return out
     
-    elif isinstance(elem, list):
-        out_g = []
-        out_pt1 = []
-        out_pt2 = []
-        out_pt3 = []
-        # out = torch.stack(elem, dim=0)
-        for i, tensor_list in enumerate(batched_inputs):
-            out_g.append(tensor_list[0])
-            out_pt1.append(tensor_list[1])
-            out_pt2.append(tensor_list[2])
-            out_pt3.append(tensor_list[3])
-        out = torch.stack(out_g, dim=0)
-        out_pt1 = torch.stack(out_pt1, dim=0)
-        out_pt2 = torch.stack(out_pt2, dim=0)
-        out_pt3 = torch.stack(out_pt3, dim=0)
-        return out, out_pt1, out_pt2, out_pt3
+    # elif isinstance(elem, list):
+    #     out_g = []
+    #     out_pt1 = []
+    #     out_pt2 = []
+    #     out_pt3 = []
+    #     # out = torch.stack(elem, dim=0)
+    #     for i, tensor_list in enumerate(batched_inputs):
+    #         out_g.append(tensor_list[0])
+    #         out_pt1.append(tensor_list[1])
+    #         out_pt2.append(tensor_list[2])
+    #         out_pt3.append(tensor_list[3])
+    #     out = torch.stack(out_g, dim=0)
+    #     out_pt1 = torch.stack(out_pt1, dim=0)
+    #     out_pt2 = torch.stack(out_pt2, dim=0)
+    #     out_pt3 = torch.stack(out_pt3, dim=0)
+    #     return out, out_pt1, out_pt2, out_pt3
 
 
 def make_sampler(train_set, num_batch, num_instance, num_workers,

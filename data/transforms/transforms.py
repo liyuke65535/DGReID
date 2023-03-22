@@ -7,7 +7,7 @@ from collections import deque
 import numpy as np
 from PIL import Image
 import cv2
-# from .functional import to_tensor, augmentations_reid
+from .functional import to_tensor, augmentations_reid
 from torchvision.transforms.functional import rotate
 
 class ToTensor(object):

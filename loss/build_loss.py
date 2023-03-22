@@ -2,27 +2,13 @@ import torch.nn.functional as F
 from .softmax_loss import CrossEntropyLabelSmooth, LabelSmoothingCrossEntropy
 from .triplet_loss import TripletLoss
 from .center_loss import CenterLoss
-from .ce_labelSmooth import CrossEntropyLabelSmooth as CE_LS
+from .ce_labelSmooth import CrossEntropyLabelSmooth as CE_LS, xded_loss
 
-feat_dim_dict = {
-    'local_attention_vit': 768,
-    'part_token_vit': 768,
-    'part_token_vit_hint': 768,
-    'patch': 768,
-    'vit': 768,
-    'transreid_ssl': 768,
-    'swin': 1024,
-    'resnet18': 512,
-    'resnet34': 512
-}
 
 def build_loss(cfg, num_classes):    # modified by gu
     name = cfg.MODEL.NAME # add by lyk
     sampler = cfg.DATALOADER.SAMPLER
-    if cfg.MODEL.NAME not in feat_dim_dict.keys():
-        feat_dim = 2048
-    else:
-        feat_dim = feat_dim_dict[cfg.MODEL.NAME]
+    feat_dim = cfg.MODEL.DIM
     center_criterion = CenterLoss(num_classes=num_classes, feat_dim=feat_dim, use_gpu=True)  # center loss
     if 'triplet' in cfg.MODEL.METRIC_LOSS_TYPE:
         if cfg.MODEL.NO_MARGIN:
@@ -38,6 +24,9 @@ def build_loss(cfg, num_classes):    # modified by gu
     if cfg.MODEL.IF_LABELSMOOTH == 'on':
         if name == 'local_attention_vit' and cfg.MODEL.PC_LOSS:
             xent = CrossEntropyLabelSmooth(num_classes=num_classes)
+        # elif cfg.MODEL.DISTILL.DO_XDED:
+        #     xent = xded_loss(num_classes=num_classes, bs=cfg.SOLVER.IMS_PER_BATCH, num_instance=cfg.DATALOADER.NUM_INSTANCE)
+        #     print("XDED on !!!")
         else:
             xent = CE_LS(num_classes=num_classes)
         print("label smooth on, numclasses:", num_classes)

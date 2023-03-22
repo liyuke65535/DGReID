@@ -3,7 +3,10 @@ import os
 import time
 import torch
 import torch.nn as nn
+from loss.triplet_loss import euclidean_dist, hard_example_mining
+from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
 from model.make_model import make_model
+from processor.inf_processor import do_inference
 from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
@@ -23,7 +26,10 @@ def ori_vit_do_train_with_amp(cfg,
              num_query, local_rank,
              patch_centers = None,
              pc_criterion= None,
-             train_dir=None):
+             train_dir=None,
+             num_pids=None,
+             memories=None,
+             sour_centers=None):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
@@ -45,11 +51,19 @@ def ori_vit_do_train_with_amp(cfg,
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=True)
 
     loss_meter = AverageMeter()
+    loss_id_meter = AverageMeter()
+    loss_id_distinct_meter = AverageMeter()
+    loss_tri_meter = AverageMeter()
+    loss_center_meter = AverageMeter()
+    loss_xded_meter = AverageMeter()
     acc_meter = AverageMeter()
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
     scaler = amp.GradScaler(init_scale=512) # altered by lyk
-    batch_size = cfg.SOLVER.IMS_PER_BATCH # altered by lyk
+    bs = cfg.SOLVER.IMS_PER_BATCH # altered by lyk
+    num_ins = cfg.DATALOADER.NUM_INSTANCE
+    classes = len(train_loader.dataset.pids)
+    center_weight = cfg.SOLVER.CENTER_LOSS_WEIGHT
 
     best = 0.0
     best_index = 1
@@ -57,6 +71,11 @@ def ori_vit_do_train_with_amp(cfg,
     for epoch in range(1, epochs + 1):
         start_time = time.time()
         loss_meter.reset()
+        loss_id_meter.reset()
+        loss_id_distinct_meter.reset()
+        loss_tri_meter.reset()
+        loss_center_meter.reset()
+        loss_xded_meter.reset()
         acc_meter.reset()
         evaluator.reset()
         scheduler.step(epoch)
@@ -87,6 +106,7 @@ def ori_vit_do_train_with_amp(cfg,
             vid = informations['targets']
             target_cam = informations['camid']
             # ipath = informations['img_path']
+            ori_label = informations['ori_label']
             t_domains = informations['others']['domains']
 
             optimizer.zero_grad()
@@ -94,16 +114,61 @@ def ori_vit_do_train_with_amp(cfg,
             img = img.to(device)
             target = vid.to(device)
             target_cam = target_cam.to(device)
+            ori_label = ori_label.to(device)
             t_domains = t_domains.to(device)
 
+            targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                if cfg.MODEL.NAME == 'transformer':
-                    score, feat, domains = model(img, domains=t_domains)
-                    loss = loss_fn(score, feat, target, domains, t_domains)
+                score, feat, targets = model(img, targets, t_domains)
+                ### id loss
+                log_probs = nn.LogSoftmax(dim=1)(score)
+                targets = 0.9 * targets + 0.1 / classes # label smooth
+                loss_id = (- targets * log_probs).mean(0).sum()
+                # loss_id = torch.tensor(0.0,device=device) ####### for test
+
+                #### id loss for each domain
+                loss_id_distinct = torch.tensor(0.0, device=device)
+                # for i,s in enumerate(score_):
+                #     if s is None: continue
+                #     idx = torch.nonzero(t_domains==i).squeeze()
+                #     log_probs = nn.LogSoftmax(1)(s)
+                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
+                #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
+                #     loss_id_distinct += (- label * log_probs).mean(0).sum()
+
+                # #### M3L memory loss
+                # for i in range(len(memories)):
+                #     idx = torch.nonzero(t_domains==i).squeeze()
+                #     if len(idx) == 0: continue
+                #     s = score[idx]
+                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
+                #     # label = 0.9 * label + 0.1 / num_pids[i] # label smooth
+                #     loss_id_distinct += memories[i](s, label).mean()
+
+                #### triplet loss
+                target = targets.max(1)[1] ###### for mixup
+                dist_mat = euclidean_dist(feat, feat)
+                #### for mixup
+                dist_ap, dist_an = hard_example_mining_for_mixup(dist_mat, target)
+                y = dist_an.new().resize_as_(dist_an).fill_(1)
+                loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
+                #### center loss
+                if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
+                    loss_center = center_criterion(feat, target)
                 else:
-                    score, feat = model(img)
-                    loss = loss_fn(score, feat, target)
+                    loss_center = torch.tensor(0.0, device=device)
+                #### XDED loss
+                if cfg.MODEL.DISTILL.DO_XDED and epoch > 5:
+                    probs = nn.Softmax(dim=1)(score / 0.2) # tao
+                    probs_mean = probs.reshape(bs//num_ins,num_ins,classes).mean(1,True)
+                    probs_xded = probs_mean.repeat(1,num_ins,1).view(-1,classes).detach()
+                    loss_xded = (- probs_xded * log_probs).mean(0).sum()
+                else:
+                    loss_xded = torch.tensor(0.0, device=device)
+
+                loss = loss_id + loss_tri + loss_id_distinct +\
+                    center_weight * loss_center + 1.0 * loss_xded # lam
 
             scaler.scale(loss).backward()
 
@@ -120,14 +185,21 @@ def ori_vit_do_train_with_amp(cfg,
             else:
                 acc = (score.max(1)[1] == target).float().mean()
 
-            loss_meter.update(loss.item(), img.shape[0])
+            loss_meter.update(loss.item(), bs)
+            loss_id_meter.update(loss_id.item(), bs)
+            loss_id_distinct_meter.update(loss_id_distinct.item(), bs)
+            loss_tri_meter.update(loss_tri.item(), bs)
+            loss_center_meter.update(center_weight*loss_center.item(), bs)
+            loss_xded_meter.update(loss_xded.item(), bs)
             acc_meter.update(acc, 1)
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}"
+                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
                 .format(epoch, n_iter+1, len(train_loader),
-                loss_meter.avg, acc_meter.avg, scheduler._get_lr(epoch)[0]))
+                loss_meter.avg,
+                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg, loss_center_meter.avg, loss_xded_meter.avg, 
+                acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
 
@@ -167,75 +239,75 @@ def ori_vit_do_train_with_amp(cfg,
                 best = mAP + cmc[0]
                 best_index = epoch
                 logger.info("=====best epoch: {}=====".format(best_index))
-            if cfg.MODEL.DIST_TRAIN:
-                if dist.get_rank() == 0:
+                if cfg.MODEL.DIST_TRAIN:
+                    if dist.get_rank() == 0:
+                        torch.save(model.state_dict(),
+                                os.path.join(log_path, cfg.MODEL.NAME + '_best.pth'))
+                else:
                     torch.save(model.state_dict(),
-                               os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
-            else:
-                torch.save(model.state_dict(),
-                           os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
+                            os.path.join(log_path, cfg.MODEL.NAME + '_best.pth'))
         torch.cuda.empty_cache()
 
     # final evaluation
-    load_path = os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(best_index))
-    eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0, camera_num=None, view_num=None)
+    load_path = os.path.join(log_path, cfg.MODEL.NAME + '_best.pth')
+    eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
     eval_model.load_param(load_path)
-    print('load weights from {}_{}.pth'.format(cfg.MODEL.NAME, best_index))
+    logger.info('load weights from best.pth')
     for testname in cfg.DATASETS.TEST:
         if 'ALL' in testname:
             testname = 'DG_' + testname.split('_')[1]
         val_loader, num_query = build_reid_test_loader(cfg, testname)
         do_inference(cfg, eval_model, val_loader, num_query)
     
-    # remove useless path files
-    del_list = os.listdir(log_path)
-    for fname in del_list:
-        if '.pth' in fname:
-            os.remove(os.path.join(log_path, fname))
-            print('removing {}. '.format(os.path.join(log_path, fname)))
-    # save final checkpoint
-    print('saving final checkpoint.\nDo not interrupt the program!!!')
-    torch.save(eval_model.state_dict(), os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
-    print('done!')
+    # # remove useless path files
+    # del_list = os.listdir(log_path)
+    # for fname in del_list:
+    #     if '.pth' in fname:
+    #         os.remove(os.path.join(log_path, fname))
+    #         print('removing {}. '.format(os.path.join(log_path, fname)))
+    # # save final checkpoint
+    # print('saving final checkpoint.\nDo not interrupt the program!!!')
+    # torch.save(eval_model.state_dict(), os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
+    # print('done!')
 
-def do_inference(cfg,
-                 model,
-                 val_loader,
-                 num_query):
-    device = "cuda"
-    logger = logging.getLogger("reid.test")
-    logger.info("Enter inferencing")
+# def do_inference(cfg,
+#                  model,
+#                  val_loader,
+#                  num_query):
+#     device = "cuda"
+#     logger = logging.getLogger("reid.test")
+#     logger.info("Enter inferencing")
 
-    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
+#     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
 
-    evaluator.reset()
+#     evaluator.reset()
 
-    if device:
-        if torch.cuda.device_count() > 1:
-            print('Using {} GPUs for inference'.format(torch.cuda.device_count()))
-            model = nn.DataParallel(model)
-        model.to(device)
+#     if device:
+#         if torch.cuda.device_count() > 1:
+#             print('Using {} GPUs for inference'.format(torch.cuda.device_count()))
+#             model = nn.DataParallel(model)
+#         model.to(device)
 
-    model.eval()
-    img_path_list = []
-    t0 = time.time()
-    for n_iter, informations in enumerate(val_loader):
-        img = informations['images']
-        pid = informations['targets']
-        camids = informations['camid']
-        imgpath = informations['img_path']
-        # domains = informations['others']['domains']
-        with torch.no_grad():
-            img = img.to(device)
-            # camids = camids.to(device)
-            feat = model(img)
-            evaluator.update((feat, pid, camids))
-            img_path_list.extend(imgpath)
+#     model.eval()
+#     img_path_list = []
+#     t0 = time.time()
+#     for n_iter, informations in enumerate(val_loader):
+#         img = informations['images']
+#         pid = informations['targets']
+#         camids = informations['camid']
+#         imgpath = informations['img_path']
+#         # domains = informations['others']['domains']
+#         with torch.no_grad():
+#             img = img.to(device)
+#             # camids = camids.to(device)
+#             feat = model(img)
+#             evaluator.update((feat, pid, camids))
+#             img_path_list.extend(imgpath)
 
-    cmc, mAP, _, _, _, _, _ = evaluator.compute()
-    logger.info("Validation Results ")
-    logger.info("mAP: {:.1%}".format(mAP))
-    for r in [1, 5, 10]:
-        logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
-    logger.info("total inference time: {:.2f}".format(time.time() - t0))
-    return cmc, mAP
+#     cmc, mAP, _, _, _, _, _ = evaluator.compute()
+#     logger.info("Validation Results ")
+#     logger.info("mAP: {:.1%}".format(mAP))
+#     for r in [1, 5, 10]:
+#         logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+#     logger.info("total inference time: {:.2f}".format(time.time() - t0))
+#     return cmc, mAP

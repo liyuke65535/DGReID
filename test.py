@@ -3,7 +3,7 @@ from config import cfg
 import argparse
 from data.build_DG_dataloader import build_reid_test_loader
 from model import make_model
-from processor.ori_vit_processor_with_amp import do_inference
+from processor.inf_processor import do_inference
 from utils.logger import setup_logger
 
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
-    model = make_model(cfg, cfg.MODEL.NAME, 0,0,0)
+    model = make_model(cfg, cfg.MODEL.NAME, 0)
     model.load_param(cfg.TEST.WEIGHT)
 
     for testname in cfg.DATASETS.TEST:

@@ -4,6 +4,7 @@ import time
 import torch
 import torch.nn as nn
 from loss.triplet_loss import euclidean_dist, hard_example_mining
+from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
 from model.make_model import make_model
 from processor.inf_processor import do_inference
 from utils.meter import AverageMeter
@@ -13,7 +14,7 @@ import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
 
-def prompt_vit_do_train_with_amp(cfg,
+def memory_classifier_vit_do_train_with_amp(cfg,
              model,
              center_criterion,
              train_loader,
@@ -23,9 +24,12 @@ def prompt_vit_do_train_with_amp(cfg,
              scheduler,
              loss_fn,
              num_query, local_rank,
-             patch_centers,
-             pc_criterion,
-            ):
+             patch_centers = None,
+             pc_criterion= None,
+             train_dir=None,
+             num_pids=None,
+             memories=None,
+             sour_centers=None):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
@@ -48,8 +52,8 @@ def prompt_vit_do_train_with_amp(cfg,
 
     loss_meter = AverageMeter()
     loss_id_meter = AverageMeter()
+    loss_id_distinct_meter = AverageMeter()
     loss_tri_meter = AverageMeter()
-    loss_domain_meter = AverageMeter()
     loss_center_meter = AverageMeter()
     loss_xded_meter = AverageMeter()
     acc_meter = AverageMeter()
@@ -58,7 +62,6 @@ def prompt_vit_do_train_with_amp(cfg,
     scaler = amp.GradScaler(init_scale=512) # altered by lyk
     bs = cfg.SOLVER.IMS_PER_BATCH # altered by lyk
     num_ins = cfg.DATALOADER.NUM_INSTANCE
-    num_dom = cfg.DATASETS.NUM_DOMAINS
     classes = len(train_loader.dataset.pids)
     center_weight = cfg.SOLVER.CENTER_LOSS_WEIGHT
 
@@ -69,8 +72,8 @@ def prompt_vit_do_train_with_amp(cfg,
         start_time = time.time()
         loss_meter.reset()
         loss_id_meter.reset()
+        loss_id_distinct_meter.reset()
         loss_tri_meter.reset()
-        loss_domain_meter.reset()
         loss_center_meter.reset()
         loss_xded_meter.reset()
         acc_meter.reset()
@@ -103,6 +106,7 @@ def prompt_vit_do_train_with_amp(cfg,
             vid = informations['targets']
             target_cam = informations['camid']
             # ipath = informations['img_path']
+            ori_label = informations['ori_label']
             t_domains = informations['others']['domains']
 
             optimizer.zero_grad()
@@ -110,36 +114,49 @@ def prompt_vit_do_train_with_amp(cfg,
             img = img.to(device)
             target = vid.to(device)
             target_cam = target_cam.to(device)
+            ori_label = ori_label.to(device)
             t_domains = t_domains.to(device)
 
+            targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                score, feat, domain_pred = model(img, t_domains)
+                score, feat, targets, score_ = model(img, targets, t_domains)
                 #### id loss
-                log_probs = nn.LogSoftmax(dim=1)(score)
-                targets = torch.zeros(log_probs.size()).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
-                targets = 0.9 * targets + 0.1 / classes # label smooth
-                loss_id = (- targets * log_probs).mean(0).sum()
+                # log_probs = nn.LogSoftmax(dim=1)(score)
+                # targets = 0.9 * targets + 0.1 / classes # label smooth
+                # loss_id = (- targets * log_probs).mean(0).sum()
+                loss_id = torch.tensor(0.0,device=device) ####### for test
+
+                #### id loss for each domain
+                loss_id_distinct = torch.tensor(0.0, device=device)
+                # for i,s in enumerate(score_):
+                #     if s is None: continue
+                #     idx = torch.nonzero(t_domains==i).squeeze()
+                #     log_probs = nn.LogSoftmax(1)(s)
+                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
+                #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
+                #     loss_id_distinct += (- label * log_probs).mean(0).sum()
+
+                #### M3L memory loss
+                for i in range(len(memories)):
+                    idx = torch.nonzero(t_domains==i).squeeze()
+                    if len(idx) == 0: continue
+                    s = score[idx]
+                    label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
+                    # label = 0.9 * label + 0.1 / num_pids[i] # label smooth
+                    loss_id_distinct += memories[i](s, label).mean()
+                # loss_id_distinct *= 0.02
+
                 #### triplet loss
+                target = targets.max(1)[1] ###### for mixup
                 dist_mat = euclidean_dist(feat, feat)
-                dist_ap, dist_an = hard_example_mining(dist_mat, target)
+                #### for mixup
+                dist_ap, dist_an = hard_example_mining_for_mixup(dist_mat, target)
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
-                #### domain loss
-                # cls_dom_prob_neg = (1 - nn.Softmax(dim=1)(dom_res_cls))/(num_dom - 1)
-                # log_cls_dom_prob_neg = torch.log(cls_dom_prob_neg)
-                log_prompt_dom_prob = nn.LogSoftmax(dim=1)(domain_pred)
-                domain_label = torch.zeros(log_prompt_dom_prob.size()).scatter_(1, t_domains.unsqueeze(1).data.cpu(), 1).to(device)
-                # loss_domain = (- domain_label * log_prompt_dom_prob).mean(0).sum()
-                loss_domain = torch.tensor(0.0, device=device)
-                # loss_domain += (- domain_label * log_cls_dom_prob_neg).mean(0).sum()
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                     loss_center = center_criterion(feat, target)
-                    for param in center_criterion.parameters():
-                        param.grad.data *= (1. / cfg.SOLVER.CENTER_LOSS_WEIGHT)
-                        scaler.step(optimizer_center)
-                        scaler.update()
                 else:
                     loss_center = torch.tensor(0.0, device=device)
                 #### XDED loss
@@ -151,13 +168,22 @@ def prompt_vit_do_train_with_amp(cfg,
                 else:
                     loss_xded = torch.tensor(0.0, device=device)
 
-                loss = loss_id + loss_tri + loss_domain +\
-                    center_weight * loss_center + 1.0 * loss_xded
+                loss = loss_id + loss_tri + loss_id_distinct +\
+                    center_weight * loss_center + 1.0 * loss_xded # lam
 
             scaler.scale(loss).backward()
 
             scaler.step(optimizer)
             scaler.update()
+
+            if memories is not None: ### momentum update
+                with torch.no_grad():
+                    for m_ind in range(len(memories)):
+                        idx = torch.nonzero(t_domains==m_ind).squeeze()
+                        if len(idx) == 0: continue
+                        imgs, pids = img[idx], ori_label[idx]
+                        f_new, _, _, _ = model(imgs)
+                        memories[m_ind].MomentumUpdate(f_new, pids)
 
             if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                 for param in center_criterion.parameters():
@@ -171,18 +197,18 @@ def prompt_vit_do_train_with_amp(cfg,
 
             loss_meter.update(loss.item(), bs)
             loss_id_meter.update(loss_id.item(), bs)
+            loss_id_distinct_meter.update(loss_id_distinct.item(), bs)
             loss_tri_meter.update(loss_tri.item(), bs)
-            loss_domain_meter.update(loss_domain.item(), img.shape[0])
             loss_center_meter.update(center_weight*loss_center.item(), bs)
             loss_xded_meter.update(loss_xded.item(), bs)
             acc_meter.update(acc, 1)
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, tri:{:.3f}, dom:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
+                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
                 .format(epoch, n_iter+1, len(train_loader),
-                loss_meter.avg, loss_id_meter.avg, loss_tri_meter.avg,
-                loss_domain_meter.avg, loss_center_meter.avg, loss_xded_meter.avg, 
+                loss_meter.avg,
+                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg, loss_center_meter.avg, loss_xded_meter.avg, 
                 acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
@@ -226,15 +252,15 @@ def prompt_vit_do_train_with_amp(cfg,
                 if cfg.MODEL.DIST_TRAIN:
                     if dist.get_rank() == 0:
                         torch.save(model.state_dict(),
-                                os.path.join(log_path, cfg.MODEL.NAME + '_best.pth'.format(epoch)))
+                                os.path.join(log_path, cfg.MODEL.NAME + '_best.pth'))
                 else:
                     torch.save(model.state_dict(),
-                            os.path.join(log_path, cfg.MODEL.NAME + '_best.pth'.format(epoch)))
+                            os.path.join(log_path, cfg.MODEL.NAME + '_best.pth'))
         torch.cuda.empty_cache()
 
     # final evaluation
     load_path = os.path.join(log_path, cfg.MODEL.NAME + '_best.pth')
-    eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0, camera_num=None, view_num=None)
+    eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
     eval_model.load_param(load_path)
     logger.info('load weights from best.pth')
     for testname in cfg.DATASETS.TEST:

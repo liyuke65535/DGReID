@@ -48,20 +48,20 @@ class Bottleneck(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        # self.bn1 = nn.BatchNorm2d(planes)
+        self.bn1 = nn.BatchNorm2d(planes)
         # self.bn1 = nn.InstanceNorm2d(planes, affine=True, track_running_stats=False)
-        self.bn1 = nn.GroupNorm(int(planes/2), planes)
+        # self.bn1 = nn.GroupNorm(int(planes/2), planes)
         # self.bn1 = nn.LayerNorm(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
-        # self.bn2 = nn.BatchNorm2d(planes)
+        self.bn2 = nn.BatchNorm2d(planes)
         # self.bn2 = nn.InstanceNorm2d(planes, affine=True, track_running_stats=False)
-        self.bn2 = nn.GroupNorm(int(planes/2), planes)
+        # self.bn2 = nn.GroupNorm(int(planes/2), planes)
         # self.bn2 = nn.LayerNorm(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        # self.bn3 = nn.BatchNorm2d(planes * 4)
+        self.bn3 = nn.BatchNorm2d(planes * 4)
         # self.bn3 = nn.InstanceNorm2d(planes * 4, affine=True, track_running_stats=False)
-        self.bn3 = nn.GroupNorm(planes*2, planes * 4)
+        # self.bn3 = nn.GroupNorm(planes*2, planes * 4)
         # self.bn3 = nn.LayerNorm(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
@@ -73,16 +73,16 @@ class Bottleneck(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
-        # out = self.bn1(out.permute(0,2,3,1)).permute(0,3,1,2)
         out = self.relu(out)
+
         # out = self.instanceNorm(out) ### add for test
+
         out = self.conv2(out)
         out = self.bn2(out)
-        # out = self.bn2(out.permute(0,2,3,1)).permute(0,3,1,2)
         out = self.relu(out)
+        
         out = self.conv3(out)
         out = self.bn3(out)
-        # out = self.bn3(out.permute(0,2,3,1)).permute(0,3,1,2)
 
         if self.downsample is not None:
             residual = self.downsample(x)

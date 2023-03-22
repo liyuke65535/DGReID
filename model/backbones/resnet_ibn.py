@@ -300,7 +300,7 @@ def resnet101_ibn_b(pretrained=False, **kwargs):
                        ibn_cfg=('b', 'b', None, None),
                        **kwargs)
     if pretrained:
-        model.load_state_dict(torch.hub.load_state_dict_from_url(model_urls['resnet101_ibn_b']))
+        model.load_state_dict(torch.load(model_urls['resnet101_ibn_b']), strict=False)
     return model
 
 

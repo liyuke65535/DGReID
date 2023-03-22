@@ -31,6 +31,8 @@ import torch.nn.functional as F
 import collections.abc as container_abcs
 from einops import rearrange
 
+from model.backbones.InstanceNorm import batchnorm_1d, instancenorm_1d, layernorm_1d
+
 int_classes = int
 string_classes = str
 
@@ -484,6 +486,15 @@ class TransReID(nn.Module):
         self.pos_drop = nn.Dropout(p=drop_rate)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
 
+        self.INs = nn.ModuleList([
+            nn.InstanceNorm1d(embed_dim)\
+            for _ in range(depth)
+        ])
+
+        self.ins_norm = instancenorm_1d(embed_dim)
+        self.lay_norm = layernorm_1d(embed_dim)
+        self.batch_norm = batchnorm_1d(embed_dim)
+
         self.blocks = nn.ModuleList([
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
@@ -530,7 +541,14 @@ class TransReID(nn.Module):
 
         x = self.pos_drop(x)
 
-        for blk in self.blocks:
+        for i, blk in enumerate(self.blocks):
+            if i < 3:
+                # x[:, 1:] = self.INs[i](x[:, 1:].transpose(-1,-2)).transpose(-1,-2)
+                # x[:, 1:] = self.INs[i](x[:, 1:])
+                # x[:, 1:] = self.ins_norm(x[:, 1:]) ## bad
+                x[:, 1:] = self.lay_norm(x[:, 1:]) ## good
+                # x[:, 1:] = self.batch_norm(x[:, 1:]) ## very bad
+                # x[:, 1:] = layernorm_1d(self.embed_dim)(x[:, 1:])
             x = blk(x)
 
         x = self.norm(x)
