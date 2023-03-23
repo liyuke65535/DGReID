@@ -27,6 +27,8 @@ class DomainQueue(nn.Module):
         self.capacity = capacity
         self.register_buffer('mean_queue', torch.zeros(num_domains, capacity, num_features))
         self.register_buffer('sig_queue', torch.ones(num_domains, capacity, num_features))
+        self.mean_queue.requires_grad = False
+        self.sig_queue.requires_grad = False
 
     def forward(self, x, domain=None):
         if not self.training:
@@ -69,7 +71,8 @@ class DomainQueue(nn.Module):
         d_inds = random.choices(range(1, self.num_domains), k=B)
         d_inds = torch.tensor(d_inds, device=domain.device) + domain
         d_inds = d_inds % self.num_domains
-        f_inds = torch.randint_like(domain, self.capacity)
+        # f_inds = torch.randint_like(domain, self.capacity)
+        f_inds = torch.tensor([random.randint(0, self.sum[d_inds[i]] % self.capacity) for i in range(B)])
         mu_ = self.mean_queue[d_inds, f_inds].unsqueeze(1)
         sig_ = self.sig_queue[d_inds, f_inds].unsqueeze(1)
 

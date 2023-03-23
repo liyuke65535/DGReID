@@ -219,7 +219,9 @@ class mix_vit(nn.Module):
         # self.mixhm = MixHistogram()
         # self.mixup = Mixup()
         # self.domainmix = DomainMix(embed_dim, num_domains)
-        self.domainqueue = DomainQueue(embed_dim, num_domains)
+        self.domainqueue = nn.ModuleList([
+            DomainQueue(embed_dim, num_domains) for _ in range(3)
+            ])
 
         self.blocks = nn.ModuleList([
             Block(
@@ -289,7 +291,7 @@ class mix_vit(nn.Module):
                 # x = self.domainmix(x)
 
                 #### domainqueue (skip cls token)
-                x[:, 1:] = self.domainqueue(x[:, 1:], domain)
+                x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
             x = blk(x)
 
         x = self.norm(x)

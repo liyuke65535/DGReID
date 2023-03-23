@@ -6,11 +6,11 @@ MODEL:
   IF_LABELSMOOTH: 'on'
   NAME: 'mix_vit' # local_attention_vit, mask_vit, mae, DG_ssl_vit, color_vit, rotate_vit, resnet50, ibnnet50, vit, distill_vit, prompt_vit, mix_vit, mem_vit
   NO_MARGIN: True
-  DEVICE_ID: ('2')
+  DEVICE_ID: ('3')
   TRANSFORMER_TYPE: 'vit_base_patch16_224_TransReID' # vit_large_patch16_224_TransReID, vit_base_patch16_224_TransReID, vit_base_patch32_224_TransReID, deit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID, deit_tiny_patch16_224_TransReID, swin_base_patch4_window7_224, swin_small_patch4_window7_224, dhvt_tiny_patch16, dhvt_small_patch16
   STRIDE_SIZE: 16
   DROP_PATH: 0.1 ###### avoid overfitting
-  # FREEZE_PATCH_EMBED: True
+  FREEZE_PATCH_EMBED: True
   # FIXED_RES_BN: True
   NORM:
     TYPE: 'LN'
@@ -74,7 +74,7 @@ DATALOADER:
   NUM_INSTANCE: 4
   NUM_WORKERS: 8
   CAMERA_TO_DOMAIN: True
-  RANDOM_BATCH: False ## False: only one domain for a batch
+  # RANDOM_BATCH: False ## Default True; False: only one domain for a batch
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD' # AdamW
@@ -114,4 +114,4 @@ LOG_NAME: 'debug'
 # LOG_NAME: 'vit_M3L_memory_class_temp15/multi-source'
 # LOG_NAME: 'vit_multi_clssifier_test/multi-source'
 # LOG_NAME: 'vit_domainqueue_3_mixstylelike_domain_shuffle/multi_source'
-# LOG_NAME: 'vit_1domain_in_1batch_revised_domainqueue3_domainshuffle/multi_source'
+# LOG_NAME: 'vit_domainqueue3_domainshuffle/Market'
