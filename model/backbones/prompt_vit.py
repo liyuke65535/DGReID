@@ -214,12 +214,12 @@ class mix_vit(nn.Module):
         num_domains = kwargs['num_domains']
         self.num_domains = num_domains
 
-        # self.mixstyle = MixStyle()
+        self.mixstyle = MixStyle()
         # self.efdmix = EFDMix()
         # self.mixhm = MixHistogram()
         # self.mixup = Mixup()
         # self.domainmix = DomainMix(embed_dim, num_domains)
-        self.domainqueue = DomainQueue(embed_dim, num_domains)
+        # self.domainqueue = DomainQueue(embed_dim, num_domains)
 
         self.blocks = nn.ModuleList([
             Block(
@@ -277,8 +277,8 @@ class mix_vit(nn.Module):
                 # x, y = self.mixup(x, labels)
                 # if y is not None: labels = y
                 
-                # #### mixstyle (skip cls token)
-                # x[:, 1:] = self.mixstyle(x[:, 1:])
+                #### mixstyle (skip cls token)
+                x[:, 1:] = self.mixstyle(x[:, 1:])
 
                 #### efdmix
                 # x = self.efdmix(x)
@@ -288,8 +288,8 @@ class mix_vit(nn.Module):
                 # #### domainmix
                 # x = self.domainmix(x)
 
-                #### domainqueue (skip cls token)
-                x[:, 1:] = self.domainqueue(x[:, 1:], domain)
+                # #### domainqueue (skip cls token)
+                # x[:, 1:] = self.domainqueue(x[:, 1:], domain)
             x = blk(x)
 
         x = self.norm(x)

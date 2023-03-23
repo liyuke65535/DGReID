@@ -75,6 +75,7 @@ def build_reid_train_loader(cfg):
         drop_last=cfg.DATALOADER.DROP_LAST,
         flag1=cfg.DATALOADER.NAIVE_WAY,
         flag2=cfg.DATALOADER.DELETE_REM,
+        train_pids=train_pids,
         cfg = cfg)
 
     if len(cfg.DATASETS.TRAIN) == 1 and cfg.DATALOADER.CAMERA_TO_DOMAIN:
@@ -185,11 +186,11 @@ def fast_batch_collator(batched_inputs):
 
 
 def make_sampler(train_set, num_batch, num_instance, num_workers,
-                 mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, cfg=None):
+                 mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
     if flag1:
         data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
-                                                      mini_batch_size, num_instance)
+                                                      mini_batch_size, num_instance,train_pids)
     else:
         data_sampler = samplers.DomainSuffleSampler(train_set.img_items,
                                                      num_batch, num_instance, flag2, seed, cfg)

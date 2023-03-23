@@ -302,20 +302,20 @@ class build_vit(nn.Module):
         feat = self.bottleneck(global_feat)
 
         if self.training:
-            # #### original
-            # cls_score = self.classifier(feat)
-            # return cls_score, global_feat, target, None
-
-            #### multi-domain head
+            #### original
             cls_score = self.classifier(feat)
-            cls_score_ = []
-            for i in range(len(self.classifiers)):
-                if i not in domain:
-                    cls_score_.append(None)
-                    continue
-                idx = torch.nonzero(domain==i).squeeze()
-                cls_score_.append(self.classifiers[i](feat[idx]))
-            return cls_score, global_feat, target, cls_score_
+            return cls_score, global_feat, target, None
+
+            # #### multi-domain head
+            # cls_score = self.classifier(feat)
+            # cls_score_ = []
+            # for i in range(len(self.classifiers)):
+            #     if i not in domain:
+            #         cls_score_.append(None)
+            #         continue
+            #     idx = torch.nonzero(domain==i).squeeze()
+            #     cls_score_.append(self.classifiers[i](feat[idx]))
+            # return cls_score, global_feat, target, cls_score_
         
             # #### memoryhead (from M3L)
             # return feat, global_feat, target, None
@@ -570,7 +570,7 @@ class build_mix_vit(nn.Module):
 
         if self.training:
             cls_score = self.classifier(feat)
-            return cls_score, global_feat, labels
+            return cls_score, global_feat, labels, None
         else:
             return feat if self.neck_feat == 'after' else global_feat
 

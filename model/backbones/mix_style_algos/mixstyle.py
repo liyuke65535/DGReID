@@ -121,4 +121,5 @@ class MixStyle(nn.Module):
         mu_mix = mu*lmda + mu2 * (1-lmda)
         sig_mix = sig*lmda + sig2 * (1-lmda)
 
+        return x_normed*sig2 + mu2 #### substitute one (for test)
         return x_normed*sig_mix + mu_mix
