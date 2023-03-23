@@ -194,6 +194,8 @@ _C.DATALOADER.CAMERA_TO_DOMAIN = False # True when single-source
 # drop last incomplete batch
 _C.DATALOADER.DROP_LAST = False
 _C.DATALOADER.DELETE_REM = False # if true, remain idx lower than num_instance
+# random batch or only one domain in a batch
+_C.DATALOADER.RANDOM_BATCH = True
 
 # ---------------------------------------------------------------------------- #
 # Solver

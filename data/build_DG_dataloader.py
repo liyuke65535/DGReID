@@ -188,9 +188,12 @@ def fast_batch_collator(batched_inputs):
 def make_sampler(train_set, num_batch, num_instance, num_workers,
                  mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
-    if flag1:
+    if not cfg.DATALOADER.RANDOM_BATCH:
         data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
                                                       mini_batch_size, num_instance,train_pids)
+    elif flag1:
+        data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
+                                                      mini_batch_size, num_instance)
     else:
         data_sampler = samplers.DomainSuffleSampler(train_set.img_items,
                                                      num_batch, num_instance, flag2, seed, cfg)
