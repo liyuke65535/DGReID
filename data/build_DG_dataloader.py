@@ -189,7 +189,7 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
                  mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
     if not cfg.DATALOADER.RANDOM_BATCH:
-        data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
+        data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
                                                       mini_batch_size, num_instance,train_pids)
     elif flag1:
         data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
