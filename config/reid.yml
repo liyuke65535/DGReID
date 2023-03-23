@@ -10,7 +10,7 @@ MODEL:
   TRANSFORMER_TYPE: 'vit_base_patch16_224_TransReID' # vit_large_patch16_224_TransReID, vit_base_patch16_224_TransReID, vit_base_patch32_224_TransReID, deit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID, deit_tiny_patch16_224_TransReID, swin_base_patch4_window7_224, swin_small_patch4_window7_224, dhvt_tiny_patch16, dhvt_small_patch16
   STRIDE_SIZE: 16
   DROP_PATH: 0.1 ###### avoid overfitting
-  FREEZE_PATCH_EMBED: True
+  # FREEZE_PATCH_EMBED: True
   # FIXED_RES_BN: True
   NORM:
     TYPE: 'LN'
@@ -57,14 +57,14 @@ INPUT:
   #   PROB: 0.5
 
 DATASETS:
-  TRAIN: ('Market1501',)
-  # TRAIN: ('DG_Market1501', 'DG_CUHK02', 'DG_CUHK03_detected', 'DG_CUHK_SYSU',) # multi
+  # TRAIN: ('Market1501',)
+  TRAIN: ('DG_Market1501', 'DG_CUHK02', 'DG_CUHK03_detected', 'DG_CUHK_SYSU',) # multi
   # TRAIN: ("DukeMTMC", "MSMT17", "Market1501", "CUHK03")
   # TRAIN: ('DG_Market1501', 'DG_CUHK02', 'DG_CUHK03_labeled', 'DG_CUHK_SYSU',)
   # TRAIN: ('PACS',)
   # TEST: ('DukeMTMC',)
-  TEST: ("DukeMTMC", "CUHK03", "Market1501", "MSMT17") # DukeMTMC
-  # TEST: ("DG_GRID", "DG_VIPeR", "DG_PRID", "DG_iLIDS", ) # multi
+  # TEST: ("DukeMTMC", "CUHK03", "Market1501", "MSMT17") # DukeMTMC
+  TEST: ("DG_GRID", "DG_VIPeR", "DG_PRID", "DG_iLIDS", ) # multi
   ROOT_DIR: ('/home/nihao/data') # root of datasets
   # COMBINEALL: True
   TEST_ALL: False
@@ -74,7 +74,7 @@ DATALOADER:
   NUM_INSTANCE: 4
   NUM_WORKERS: 8
   CAMERA_TO_DOMAIN: True
-  # RANDOM_BATCH: False ## Default True; False: only one domain for a batch
+  RANDOM_BATCH: False ## Default True; False: only one domain for a batch
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD' # AdamW
@@ -115,3 +115,4 @@ LOG_NAME: 'debug'
 # LOG_NAME: 'vit_multi_clssifier_test/multi-source'
 # LOG_NAME: 'vit_domainqueue_3_mixstylelike_domain_shuffle/multi_source'
 # LOG_NAME: 'vit_domainqueue3_domainshuffle/Market'
+LOG_NAME: 'vit_single_domain_for_batches_domainqueue_new_3/multi_source'
