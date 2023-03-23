@@ -4,7 +4,7 @@ MODEL:
   METRIC_LOSS_TYPE: 'triplet' # triplet, triplet_center
   DIM: 768
   IF_LABELSMOOTH: 'on'
-  NAME: 'mix_vit' # local_attention_vit, mask_vit, mae, DG_ssl_vit, color_vit, rotate_vit, resnet50, ibnnet50, vit, distill_vit, prompt_vit, mix_vit, mem_vit
+  NAME: 'vit' # local_attention_vit, mask_vit, mae, DG_ssl_vit, color_vit, rotate_vit, resnet50, ibnnet50, vit, distill_vit, prompt_vit, mix_vit, mem_vit
   NO_MARGIN: True
   DEVICE_ID: ('1')
   TRANSFORMER_TYPE: 'vit_base_patch16_224_TransReID' # vit_large_patch16_224_TransReID, vit_base_patch16_224_TransReID, vit_base_patch32_224_TransReID, deit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID, deit_tiny_patch16_224_TransReID, swin_base_patch4_window7_224, swin_small_patch4_window7_224, dhvt_tiny_patch16, dhvt_small_patch16
@@ -50,15 +50,11 @@ MODEL:
 INPUT:
   SIZE_TRAIN: [256,128]
   SIZE_TEST: [256,128]
-  # SIZE_TRAIN: [224,224] ### for swin
-  # SIZE_TEST: [224,224]  ### for swin
   PIXEL_MEAN: [0.5, 0.5, 0.5]
   PIXEL_STD: [0.5, 0.5, 0.5]
   # LGT: # Local Grayscale Transfomation
   #   DO_LGT: True
   #   PROB: 0.5
-  # DO_AUGMIX: True
-  # DO_AUTOAUG: True
 
 DATASETS:
   # TRAIN: ('Market1501',)
@@ -70,16 +66,15 @@ DATASETS:
   # TEST: ("DukeMTMC", "CUHK03", "Market1501", "MSMT17") # DukeMTMC
   TEST: ("DG_GRID", "DG_VIPeR", "DG_PRID", "DG_iLIDS", ) # multi
   ROOT_DIR: ('/home/nihao/data') # root of datasets
-  # NUM_DOMAINS: 6
   # COMBINEALL: True
   TEST_ALL: False
 
 DATALOADER:
   SAMPLER: 'softmax_triplet'
   NUM_INSTANCE: 4
-  # NUM_INSTANCE: 9 ##### PACS
   NUM_WORKERS: 8
   CAMERA_TO_DOMAIN: True
+  RANDOM_BATCH: False ## False: only one domain for a batch
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD' # AdamW
@@ -87,19 +82,14 @@ SOLVER:
   MAX_EPOCHS: 60
   BASE_LR: 0.001 # 0.0004 for msmt
   IMS_PER_BATCH: 64
-  # IMS_PER_BATCH: 63 ########PACS
-  # WARMUP_METHOD: 'linear'
   LARGE_FC_LR: False
   CHECKPOINT_PERIOD: 5
   LOG_PERIOD: 60 ## 60
   EVAL_PERIOD: 5
-  # VIS_PERIOD: 1
   WEIGHT_DECAY:  1e-4
   WEIGHT_DECAY_BIAS: 1e-4
   BIAS_LR_FACTOR: 2
   SEED: 1234
-  # RESUME: True
-  # RESUME_PATH: "/home/nihao/data/exp/vit-b-16-lr0.001/market/vit_60.pth"
 
 TEST:
   EVAL: True
