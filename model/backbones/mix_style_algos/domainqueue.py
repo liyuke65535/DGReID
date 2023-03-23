@@ -46,19 +46,10 @@ class DomainQueue(nn.Module):
                 self.mean_queue[i, :length-rest] = mean[rest:].detach()
                 self.sig_queue[i, sum:] = sig[:rest].detach()
                 self.sig_queue[i, :length-rest] = sig[rest:].detach()
-            # elif sum == 0:
-            #     self.mean_queue[i] = mean.expand_as(self.mean_queue[i]).detach()
-            #     self.sig_queue[i] = sig.expand_as(self.sig_queue[i]).detach()
             else:
                 self.mean_queue[i, sum:sum+length] = mean.detach()
                 self.sig_queue[i, sum:sum+length] = sig.detach()
             self.sum[i] = self.sum[i] + int(length)
-
-            # for ind in range(length):
-            #     sum = self.sum[i] % self.capacity
-            #     self.mean_queue[i, sum] = mean[ind].detach()
-            #     self.sig_queue[i, sum] = sig[ind].detach()
-            #     self.sum[i] = self.sum[i] + 1
 
         if not random.random() > self.p:
             return x

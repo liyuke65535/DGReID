@@ -264,81 +264,51 @@ class RandomIdentitySampler(Sampler):
         avai_pids = copy.deepcopy(self.pids)
         final_idxs = []
 
-        ############# ori type ##############
-        while len(avai_pids) >= self.num_pids_per_batch:
-            selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
+        # ############# ori type ##############
+        # while len(avai_pids) >= self.num_pids_per_batch:
+        #     selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
+        #     for pid in selected_pids:
+        #         batch_idxs = batch_idxs_dict[pid].pop(0)
+        #         final_idxs.extend(batch_idxs)
+        #         if len(batch_idxs_dict[pid]) == 0:
+        #             avai_pids.remove(pid)
+        # ############# ori type ##############
+
+
+        ############## only one domain in a batch ##############
+        num_dom = len(self.num_pids)
+        start, end = [0], [self.num_pids[0]]
+        for i in range(num_dom-1):
+            start.append(start[-1] + self.num_pids[i])
+            end.append(start[-1] + self.num_pids[i+1])
+        pids_domain_wise = [
+            avai_pids[start[i]:end[i]]\
+            for i in range(len(self.num_pids))
+        ]
+        remain_pids = []
+        
+        while len(pids_domain_wise) > 0:
+            pids = random.choice(pids_domain_wise)
+            ind = pids_domain_wise.index(pids)
+            if len(pids) < self.num_pids_per_batch:
+                remain_pids.extend(pids)
+                pids_domain_wise.remove(pids)
+                if len(remain_pids)>=self.num_pids_per_batch:
+                    selected_pids = random.sample(remain_pids, self.num_pids_per_batch)
+                else:
+                    continue
+            else:
+                selected_pids = random.sample(pids, self.num_pids_per_batch)
             for pid in selected_pids:
                 batch_idxs = batch_idxs_dict[pid].pop(0)
                 final_idxs.extend(batch_idxs)
                 if len(batch_idxs_dict[pid]) == 0:
-                    avai_pids.remove(pid)
-        ############# ori type ##############
-
-
-        ############# only one domain in a batch ##############
-        # num_dom = len(self.num_pids)
-        # start, end = [0], [self.num_pids[0]]
-        # for i in range(num_dom-1):
-        #     start.append(start[-1] + self.num_pids[i])
-        #     end.append(start[-1] + self.num_pids[i+1])
-        # pids_domain_wise = [
-        #     avai_pids[start[i]:end[i]]\
-        #     for i in range(len(self.num_pids))
-        # ]
-        # remain_pids = []
-
-        # avai_dom = [i for i in range(num_dom)]
-        # while len(avai_dom) > 0:
-        #     if len(avai_dom) > 0:
-        #         dom_ind = random.choice(avai_dom)
-        #         if len(pids_domain_wise[dom_ind]) < self.num_pids_per_batch:
-        #             remain_pids.extend(pids_domain_wise[dom_ind])
-        #             pids_domain_wise[dom_ind] = []
-        #             avai_dom.remove(dom_ind)
-        #             if avai_dom == 0 and len(remain_pids) >= self.num_pids_per_batch:
-        #                 selected_pids = random.sample(remain_pids, self.num_pids_per_batch)
-        #                 selected_pids.extend(random.sample(pids_domain_wise[dom_ind], self.num_pids_per_batch))
-        #             else:
-        #                 continue
-        #         else:
-        #             selected_pids = random.sample(pids_domain_wise[dom_ind], self.num_pids_per_batch)
-        #     else:
-        #         selected_pids = random.sample(remain_pids, self.num_pids_per_batch)
-        #         selected_pids.extend(random.sample(pids_domain_wise[dom_ind], self.num_pids_per_batch))
-
-        #     for pid in selected_pids:
-        #         batch_idxs = batch_idxs_dict[pid].pop(0)
-        #         final_idxs.extend(batch_idxs)
-        #         if len(batch_idxs_dict[pid]) == 0:
-        #             if len(avai_dom) == 0:
-        #                 remain_pids.remove(pid)
-        #                 continue
-        #             pids_domain_wise[dom_ind].remove(pid)
-        #             if len(pids_domain_wise[dom_ind]) == 0:
-        #                 pids_domain_wise.remove(dom_ind)
-        
-        # while len(pids_domain_wise) > 0:
-        #     pids = random.choice(pids_domain_wise)
-        #     ind = pids_domain_wise.index(pids)
-        #     if len(pids) < self.num_pids_per_batch:
-        #         remain_pids.extend(pids)
-        #         pids_domain_wise.remove(pids)
-        #         if len(remain_pids)>=self.num_pids_per_batch:
-        #             selected_pids = random.sample(remain_pids, self.num_pids_per_batch)
-        #         else:
-        #             continue
-        #     else:
-        #         selected_pids = random.sample(pids, self.num_pids_per_batch)
-        #     for pid in selected_pids:
-        #         batch_idxs = batch_idxs_dict[pid].pop(0)
-        #         final_idxs.extend(batch_idxs)
-        #         if len(batch_idxs_dict[pid]) == 0:
-        #             if pid in remain_pids:
-        #                 remain_pids.remove(pid)
-        #                 continue
-        #             pids_domain_wise[ind].remove(pid)
-        #             if len(pids_domain_wise[ind]) == 0:
-        #                 pids_domain_wise.remove(pids)
+                    if pid in remain_pids:
+                        remain_pids.remove(pid)
+                        continue
+                    pids_domain_wise[ind].remove(pid)
+                    if len(pids_domain_wise[ind]) == 0:
+                        pids_domain_wise.remove(pids)
         ############## only one domain in a batch ##############
 
         logger.info('batch divide time: {:.2f}s'.format(time.time()-t0))
