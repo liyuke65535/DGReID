@@ -64,3 +64,37 @@ class MemoryClassifier(nn.Module):
         # denominator = torch.exp(inputs @ self.features.t()).sum(1)
         # loss = -torch.log(numerator / denominator)
         # return loss.sum()
+
+from loss.triplet_loss import euclidean_dist
+class FeatureMemory(nn.Module):
+    def __init__(self, num_features, num_pids, momentum=0.9) -> None:
+        super().__init__()
+        self.num_features = num_features
+        self.num_pids = num_pids
+        self.momentum = momentum
+
+        self.avai_pids = []
+        self.register_buffer("feats", torch.zeros(num_pids, num_features))
+        self.feats.requires_grad = False
+
+    def momentum_update(self, x, labels):
+        self.feats[labels] = self.feats[labels] * self.momentum + x * (1-self.momentum)
+
+    def forward(self, x, labels):
+        dist_mat = euclidean_dist(x,x)
+        assert dist_mat.dim() == 2
+        assert dist_mat.size(0) == dist_mat.size(1)
+        N = dist_mat.size(0)
+        is_pos = labels.expand(N, N).eq(labels.expand(N,N).t())
+        dist_ap, relative_p_inds = torch.max(
+            dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
+        fea = self.feats
+        dist_mat2 = euclidean_dist(x, fea)
+        one_hot_labels = torch.zeros([N, self.num_pids]).scatter_(1, labels.unsqueeze(1).data.cpu(), 1).to(x.device)
+        dist_an, relative_n_inds = torch.min(
+            dist_mat2[~one_hot_labels].contiguous().view(N, -1), 1, keepdim=True)
+        y = torch.ones_like(dist_an)
+        loss = self.ranking_loss(dist_an - dist_ap, y)
+
+        self.momentum_update(x, labels)
+        return loss
