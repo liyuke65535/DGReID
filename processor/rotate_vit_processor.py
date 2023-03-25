@@ -16,7 +16,7 @@ import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
 
-from visualize.colorize_vis import colorize_vis
+# from visualize.colorize_vis import colorize_vis
 
 def rotate_vit_do_train_with_amp(cfg,
              model,

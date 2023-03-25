@@ -96,11 +96,13 @@ class FeatureMemory(nn.Module):
         assert dist_mat.size(0) == dist_mat.size(1)
         N = dist_mat.size(0)
         is_pos = labels.expand(N, N).eq(labels.expand(N,N).t())
-        dist_ap, relative_p_inds = torch.max(
-            dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
+        # dist_ap, relative_p_inds = torch.max(
+        #     dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
         fea = self.feats
         dist_mat2 = euclidean_dist(x, fea)
         one_hot_labels = torch.zeros([N, self.num_pids]).scatter_(1, labels.unsqueeze(1).data.cpu(), 1)
+        dist_ap, relative_p_inds = torch.max(
+            dist_mat2[one_hot_labels.bool()].contiguous().view(N, -1), 1, keepdim=True)
         dist_an, relative_n_inds = torch.min(
             dist_mat2[~one_hot_labels.bool()].contiguous().view(N, -1), 1, keepdim=True)
         y = torch.ones_like(dist_an)

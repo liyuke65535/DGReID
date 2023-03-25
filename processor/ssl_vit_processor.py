@@ -15,7 +15,7 @@ import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
 
-from visualize.inpainting_vis import inpaint_vis
+# from visualize.inpainting_vis import inpaint_vis
 
 def ssl_vit_do_train_with_amp(cfg,
              model,
