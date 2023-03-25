@@ -80,6 +80,13 @@ class FeatureMemory(nn.Module):
         self.ranking_loss = nn.SoftMarginLoss()
 
         self.saved_tensors = None
+
+    def init_memories(self, model, imgs, labels):
+        model = model.eval()
+        with torch.no_grad():
+            score, feat, targets, score_ = model(imgs)
+            self.feats[labels] = feat
+
     def momentum_update(self):
         if self.saved_tensors is None:
             print("None saved tensors!!!!!!")

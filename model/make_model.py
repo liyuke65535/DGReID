@@ -563,7 +563,7 @@ class build_mix_vit(nn.Module):
         self.classifier.apply(weights_init_classifier)
         
     def forward(self, x, labels=None, domains=None):
-        x, labels = self.base(x, labels, domains) # B, N, C
+        x = self.base(x, labels, domains) # B, N, C
         global_feat = x[:, 0] # cls token for global feature
 
         feat = self.bottleneck(global_feat)
@@ -675,537 +675,537 @@ class build_distill_vit(nn.Module):
         logger = logging.getLogger('reid.train')
         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
-class build_mask_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        self.model_path = os.path.join(model_path_base, path)
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 768
+# class build_mask_vit(nn.Module):
+#     def __init__(self, num_classes, cfg, factory):
+#         super().__init__()
+#         self.cfg = cfg
+#         model_path_base = cfg.MODEL.PRETRAIN_PATH
+#         path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+#         self.model_path = os.path.join(model_path_base, path)
+#         self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+#         self.cos_layer = cfg.MODEL.COS_LAYER
+#         self.neck = cfg.MODEL.NECK
+#         self.neck_feat = cfg.TEST.NECK_FEAT
+#         self.in_planes = 768
 
-        print('using Transformer_type: vit as a backbone')
+#         print('using Transformer_type: vit as a backbone')
 
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-        self.base = mask_vit_base\
-            (img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            norm=norm)
-        if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
-            self.in_planes = 384
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
-            self.in_planes = 192
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
-            self.in_planes = 1024
-        if self.pretrain_choice == 'imagenet':
-            self.base.load_param(self.model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
+#         self.gap = nn.AdaptiveAvgPool2d(1)
+#         self.num_classes = num_classes
+#         norm = norm_layer[cfg.MODEL.NORM.TYPE]
+#         self.base = mask_vit_base\
+#             (img_size=cfg.INPUT.SIZE_TRAIN,
+#             stride_size=cfg.MODEL.STRIDE_SIZE,
+#             drop_path_rate=cfg.MODEL.DROP_PATH,
+#             drop_rate= cfg.MODEL.DROP_OUT,
+#             attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+#             norm=norm)
+#         if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
+#             self.in_planes = 384
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
+#             self.in_planes = 192
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
+#             self.in_planes = 1024
+#         if self.pretrain_choice == 'imagenet':
+#             self.base.load_param(self.model_path)
+#             print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
             
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
+#         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+#         self.classifier.apply(weights_init_classifier)
+#         self.bottleneck = nn.BatchNorm1d(self.in_planes)
+#         self.bottleneck.bias.requires_grad_(False)
+#         self.bottleneck.apply(weights_init_kaiming)
 
-    def forward(self, x, mask=None):
-        x = self.base(x, mask) # B, N, C
-        global_feat = x[:, 0] # cls token for global feature
+#     def forward(self, x, mask=None):
+#         x = self.base(x, mask) # B, N, C
+#         global_feat = x[:, 0] # cls token for global feature
 
-        feat = self.bottleneck(global_feat)
+#         feat = self.bottleneck(global_feat)
 
-        if self.training:
-            cls_score = self.classifier(feat)
-            return cls_score, global_feat
-        else:
-            return feat if self.neck_feat == 'after' else global_feat
+#         if self.training:
+#             cls_score = self.classifier(feat)
+#             return cls_score, global_feat
+#         else:
+#             return feat if self.neck_feat == 'after' else global_feat
 
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            if 'bottleneck' in i:
-                continue
-            self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
-        print('Loading trained model from {}'.format(trained_path))
+#     def load_param(self, trained_path):
+#         param_dict = torch.load(trained_path)
+#         for i in param_dict:
+#             if 'classifier' in i: # drop classifier
+#                 continue
+#             if 'bottleneck' in i:
+#                 continue
+#             self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
+#         print('Loading trained model from {}'.format(trained_path))
 
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
+#     def load_param_finetune(self, model_path):
+#         param_dict = torch.load(model_path)
+#         for i in param_dict:
+#             self.state_dict()[i].copy_(param_dict[i])
+#         print('Loading pretrained model for finetuning from {}'.format(model_path))
 
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
+#     def compute_num_params(self):
+#         total = sum([param.nelement() for param in self.parameters()])
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
 #######
-class build_mae(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        self.model_path = os.path.join(model_path_base, path)
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 768
+# class build_mae(nn.Module):
+#     def __init__(self, num_classes, cfg, factory):
+#         super().__init__()
+#         self.cfg = cfg
+#         model_path_base = cfg.MODEL.PRETRAIN_PATH
+#         path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+#         self.model_path = os.path.join(model_path_base, path)
+#         self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+#         self.cos_layer = cfg.MODEL.COS_LAYER
+#         self.neck = cfg.MODEL.NECK
+#         self.neck_feat = cfg.TEST.NECK_FEAT
+#         self.in_planes = 768
 
-        print('using Transformer_type: vit as a backbone')
+#         print('using Transformer_type: vit as a backbone')
 
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-        self.base = pretrain_mae_base_patch16_224\
-            (pretrained=False,
-            img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            init_ckpt="/home/nihao/data/checkpoints/mae_pretrain_vit_base.pth")
-        if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
-            self.in_planes = 384
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
-            self.in_planes = 192
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
-            self.in_planes = 1024
-        # if self.pretrain_choice == 'imagenet':
-        #     self.base.encoder.load_param(self.model_path)
-        #     print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
+#         self.gap = nn.AdaptiveAvgPool2d(1)
+#         self.num_classes = num_classes
+#         norm = norm_layer[cfg.MODEL.NORM.TYPE]
+#         self.base = pretrain_mae_base_patch16_224\
+#             (pretrained=False,
+#             img_size=cfg.INPUT.SIZE_TRAIN,
+#             stride_size=cfg.MODEL.STRIDE_SIZE,
+#             init_ckpt="/home/nihao/data/checkpoints/mae_pretrain_vit_base.pth")
+#         if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
+#             self.in_planes = 384
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
+#             self.in_planes = 192
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
+#             self.in_planes = 1024
+#         # if self.pretrain_choice == 'imagenet':
+#         #     self.base.encoder.load_param(self.model_path)
+#         #     print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
             
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
+#         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+#         self.classifier.apply(weights_init_classifier)
+#         self.bottleneck = nn.BatchNorm1d(self.in_planes)
+#         self.bottleneck.bias.requires_grad_(False)
+#         self.bottleneck.apply(weights_init_kaiming)
 
-    def forward(self, x, mask=None, vis=False):
-        if not self.training and not vis:
-            x = self.base(x) # B, N, C
-            global_feat = x[:, 0] # cls token for global feature
-            feat = self.bottleneck(global_feat)
-            return feat if self.neck_feat == 'after' else global_feat
+#     def forward(self, x, mask=None, vis=False):
+#         if not self.training and not vis:
+#             x = self.base(x) # B, N, C
+#             global_feat = x[:, 0] # cls token for global feature
+#             feat = self.bottleneck(global_feat)
+#             return feat if self.neck_feat == 'after' else global_feat
 
-        x, x_ = self.base(x, mask, vis)
-        # x = self.base(x, mask)
-        global_feat = x[:, 0] # cls token for global feature
-        feat = self.bottleneck(global_feat)
-        cls_score = self.classifier(feat)
+#         x, x_ = self.base(x, mask, vis)
+#         # x = self.base(x, mask)
+#         global_feat = x[:, 0] # cls token for global feature
+#         feat = self.bottleneck(global_feat)
+#         cls_score = self.classifier(feat)
 
-        return cls_score, global_feat, x_
-        # return cls_score, global_feat
+#         return cls_score, global_feat, x_
+#         # return cls_score, global_feat
 
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            if 'bottleneck' in i:
-                continue
-            self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
-        print('Loading trained model from {}'.format(trained_path))
+#     def load_param(self, trained_path):
+#         param_dict = torch.load(trained_path)
+#         for i in param_dict:
+#             if 'classifier' in i: # drop classifier
+#                 continue
+#             if 'bottleneck' in i:
+#                 continue
+#             self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
+#         print('Loading trained model from {}'.format(trained_path))
 
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
+#     def load_param_finetune(self, model_path):
+#         param_dict = torch.load(model_path)
+#         for i in param_dict:
+#             self.state_dict()[i].copy_(param_dict[i])
+#         print('Loading pretrained model for finetuning from {}'.format(model_path))
 
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
+#     def compute_num_params(self):
+#         total = sum([param.nelement() for param in self.parameters()])
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
-###### solve DG problem with ssl
-class build_DG_ssl_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        self.model_path = os.path.join(model_path_base, path)
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 768
+# ###### solve DG problem with ssl
+# class build_DG_ssl_vit(nn.Module):
+#     def __init__(self, num_classes, cfg, factory):
+#         super().__init__()
+#         self.cfg = cfg
+#         model_path_base = cfg.MODEL.PRETRAIN_PATH
+#         path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+#         self.model_path = os.path.join(model_path_base, path)
+#         self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+#         self.cos_layer = cfg.MODEL.COS_LAYER
+#         self.neck = cfg.MODEL.NECK
+#         self.neck_feat = cfg.TEST.NECK_FEAT
+#         self.in_planes = 768
 
-        print('using Transformer_type: vit as a backbone')
+#         print('using Transformer_type: vit as a backbone')
 
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-        ## backbone
-        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
-            (img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            norm=norm)
-        if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
-            self.in_planes = 384
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
-            self.in_planes = 192
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
-            self.in_planes = 1024
-        if self.pretrain_choice == 'imagenet':
-            self.base.load_param(self.model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
+#         self.gap = nn.AdaptiveAvgPool2d(1)
+#         self.num_classes = num_classes
+#         norm = norm_layer[cfg.MODEL.NORM.TYPE]
+#         ## backbone
+#         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
+#             (img_size=cfg.INPUT.SIZE_TRAIN,
+#             stride_size=cfg.MODEL.STRIDE_SIZE,
+#             drop_path_rate=cfg.MODEL.DROP_PATH,
+#             drop_rate= cfg.MODEL.DROP_OUT,
+#             attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+#             norm=norm)
+#         if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
+#             self.in_planes = 384
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
+#             self.in_planes = 192
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
+#             self.in_planes = 1024
+#         if self.pretrain_choice == 'imagenet':
+#             self.base.load_param(self.model_path)
+#             print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
         
-        ## head & BNNeck
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
+#         ## head & BNNeck
+#         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+#         self.classifier.apply(weights_init_classifier)
+#         self.bottleneck = nn.BatchNorm1d(self.in_planes)
+#         self.bottleneck.bias.requires_grad_(False)
+#         self.bottleneck.apply(weights_init_kaiming)
 
-        # decoder for img reconstruction
-        if self.in_planes == 3*cfg.MODEL.STRIDE_SIZE**2:
-            self.encoder_to_decoder = nn.Identity()
-        else:
-            self.encoder_to_decoder = nn.Linear(self.in_planes, 3*cfg.MODEL.STRIDE_SIZE**2, bias=False)
-        de_norm = norm_layer[cfg.MODEL.DECODER.NORM]
-        self.decoder = mask_vit_decoder(
-            num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
-            embed_dim=cfg.MODEL.DECODER.DIM,
-            depth=cfg.MODEL.DECODER.DEPTH,
-            num_heads=cfg.MODEL.DECODER.NUM_HEAD,
-            mlp_ratio=cfg.MODEL.DECODER.MLP_RATIO,
-            norm_layer=de_norm
-            # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
-            # embed_dim=3*cfg.MODEL.STRIDE_SIZE**2,
-            # depth=len(self.base.blocks),
-            # num_heads=self.base.num_heads,
-            # mlp_ratio=self.base.mlp_ratio
-        )
-        self.decoder = deit_tiny_patch16_224_TransReID(num_classes=3*cfg.MODEL.STRIDE_SIZE**2)
-        self.decoder.load_param("/home/nihao/data/checkpoints/deit_tiny_distilled_patch16_224-b40b3cf7.pth")
+#         # decoder for img reconstruction
+#         if self.in_planes == 3*cfg.MODEL.STRIDE_SIZE**2:
+#             self.encoder_to_decoder = nn.Identity()
+#         else:
+#             self.encoder_to_decoder = nn.Linear(self.in_planes, 3*cfg.MODEL.STRIDE_SIZE**2, bias=False)
+#         de_norm = norm_layer[cfg.MODEL.DECODER.NORM]
+#         self.decoder = mask_vit_decoder(
+#             num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
+#             embed_dim=cfg.MODEL.DECODER.DIM,
+#             depth=cfg.MODEL.DECODER.DEPTH,
+#             num_heads=cfg.MODEL.DECODER.NUM_HEAD,
+#             mlp_ratio=cfg.MODEL.DECODER.MLP_RATIO,
+#             norm_layer=de_norm
+#             # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
+#             # embed_dim=3*cfg.MODEL.STRIDE_SIZE**2,
+#             # depth=len(self.base.blocks),
+#             # num_heads=self.base.num_heads,
+#             # mlp_ratio=self.base.mlp_ratio
+#         )
+#         self.decoder = deit_tiny_patch16_224_TransReID(num_classes=3*cfg.MODEL.STRIDE_SIZE**2)
+#         self.decoder.load_param("/home/nihao/data/checkpoints/deit_tiny_distilled_patch16_224-b40b3cf7.pth")
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, 3*cfg.MODEL.STRIDE_SIZE**2))
-        self.abs_pos_embed = get_sinusoid_encoding_table(self.base.patch_embed.num_patches, 3*cfg.MODEL.STRIDE_SIZE**2)
+#         self.mask_token = nn.Parameter(torch.zeros(1, 1, 3*cfg.MODEL.STRIDE_SIZE**2))
+#         self.abs_pos_embed = get_sinusoid_encoding_table(self.base.patch_embed.num_patches, 3*cfg.MODEL.STRIDE_SIZE**2)
         
-        self.discriminator = TransReID(
-            img_size=cfg.INPUT.SIZE_TRAIN,
-            # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
-            # embed_dim=3*cfg.MODEL.STRIDE_SIZE**2,
-            # depth=len(self.base.blocks),
-            # num_heads=self.base.num_heads,
-            # mlp_ratio=self.base.mlp_ratio
-            # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
-            embed_dim=cfg.MODEL.DECODER.DIM,
-            depth=cfg.MODEL.DECODER.DEPTH,
-            num_heads=cfg.MODEL.DECODER.NUM_HEAD,
-            mlp_ratio=cfg.MODEL.DECODER.MLP_RATIO,
-            norm_layer=de_norm
-        )
-        self.discriminator = deit_tiny_patch16_224_TransReID()
-        self.discriminator.load_param("/home/nihao/data/checkpoints/deit_tiny_distilled_patch16_224-b40b3cf7.pth")
-        # if 
-        self.decoder_to_discriminator = nn.Linear(self.decoder.embed_dim, 3*cfg.MODEL.STRIDE_SIZE**2, bias=False)
+#         self.discriminator = TransReID(
+#             img_size=cfg.INPUT.SIZE_TRAIN,
+#             # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
+#             # embed_dim=3*cfg.MODEL.STRIDE_SIZE**2,
+#             # depth=len(self.base.blocks),
+#             # num_heads=self.base.num_heads,
+#             # mlp_ratio=self.base.mlp_ratio
+#             # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
+#             embed_dim=cfg.MODEL.DECODER.DIM,
+#             depth=cfg.MODEL.DECODER.DEPTH,
+#             num_heads=cfg.MODEL.DECODER.NUM_HEAD,
+#             mlp_ratio=cfg.MODEL.DECODER.MLP_RATIO,
+#             norm_layer=de_norm
+#         )
+#         self.discriminator = deit_tiny_patch16_224_TransReID()
+#         self.discriminator.load_param("/home/nihao/data/checkpoints/deit_tiny_distilled_patch16_224-b40b3cf7.pth")
+#         # if 
+#         self.decoder_to_discriminator = nn.Linear(self.decoder.embed_dim, 3*cfg.MODEL.STRIDE_SIZE**2, bias=False)
 
-        logger = logging.getLogger('reid.train')
-        logger.info("Decoder: {:.2f}M; Discriminator: {:.2f}M".format(self.decoder.compute_num_params(), self.discriminator.compute_num_params()))
-        self.d_head = nn.Linear(self.discriminator.embed_dim, 1, bias=False)
-        # self.d_head = nn.Identity()
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Decoder: {:.2f}M; Discriminator: {:.2f}M".format(self.decoder.compute_num_params(), self.discriminator.compute_num_params()))
+#         self.d_head = nn.Linear(self.discriminator.embed_dim, 1, bias=False)
+#         # self.d_head = nn.Identity()
 
-    def forward(self, x, mask=None, vis=False):
-        if not self.training and not vis:
-            x = self.base(x) # B, N, C
-            global_feat = x[:, 0] # cls token for global feature
-            feat = self.bottleneck(global_feat)
-            return feat if self.neck_feat == 'after' else global_feat
+#     def forward(self, x, mask=None, vis=False):
+#         if not self.training and not vis:
+#             x = self.base(x) # B, N, C
+#             global_feat = x[:, 0] # cls token for global feature
+#             feat = self.bottleneck(global_feat)
+#             return feat if self.neck_feat == 'after' else global_feat
 
-        ## feat extract
-        x_enc = self.base(x)
-        global_feat = x_enc[:, 0] # cls token for global feature
+#         ## feat extract
+#         x_enc = self.base(x)
+#         global_feat = x_enc[:, 0] # cls token for global feature
         
-        ## head & bnneck for supervised ReID
-        feat = self.bottleneck(global_feat)
-        cls_score = self.classifier(feat)
+#         ## head & bnneck for supervised ReID
+#         feat = self.bottleneck(global_feat)
+#         cls_score = self.classifier(feat)
 
-        ## img reconstruct for self-supervised generalization
-        mask = mask.bool()[:, 1:]
-        patch_size = self.cfg.MODEL.STRIDE_SIZE
-        h_num = self.cfg.INPUT.SIZE_TRAIN[0] // patch_size
-        x_enc = self.encoder_to_decoder(x_enc)[:, 1:] # drop cls token
-        B, _, C = x_enc.shape
-        x_vis = x_enc[~mask].reshape(B, -1, C)
-        expand_pos_embed = self.abs_pos_embed.expand(B, -1, -1).type_as(x_enc).to(x.device).clone().detach()
-        pos_emd_vis = expand_pos_embed[~mask].reshape(B, -1, C)
-        pos_emd_mask = expand_pos_embed[mask].reshape(B, -1, C)
-        x_full = torch.cat([x_vis + pos_emd_vis, self.mask_token + pos_emd_mask], dim=1)
-        # x_inpaint = self.decoder(x_full, pos_emd_mask.shape[1])
-        x_full = rearrange(x_full, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', p1=patch_size, p2=patch_size, h=h_num)
-        x_inpaint = self.decoder(x_full)
-        x_inpaint = self.decoder_to_discriminator(x_inpaint)[:,1:]
-        x_inpaint = rearrange(x_inpaint, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', p1=patch_size, p2=patch_size, h=h_num)
-        # x_ = self.decoder_to_discriminator(x_inpaint)
-        d_fake = torch.sigmoid(self.d_head(self.discriminator(x_inpaint)[:, 0])).squeeze()
-        d_real = torch.sigmoid(self.d_head(self.discriminator(x)[:, 0])).squeeze()
-        return cls_score, global_feat, x_inpaint, d_real, d_fake
-
-
-        # # x_enc = self.encoder_to_decoder(x_enc)
-        # x = rearrange(x, 'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=self.cfg.MODEL.STRIDE_SIZE, p2=self.cfg.MODEL.STRIDE_SIZE)
-        # pos_embed = self.abs_pos_embed.to(x.device.type)
-        # x_feat = self.decoder(x_enc[:,1:]+pos_embed)
-        # # ori_feat = self.decoder(x+pos_embed)
-
-        # return cls_score, global_feat, x_feat,\
-        #     #  ori_feat
-
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            if 'bottleneck' in i:
-                continue
-            self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
-        print('Loading trained model from {}'.format(trained_path))
-
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
-
-class colorize_decoder(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
+#         ## img reconstruct for self-supervised generalization
+#         mask = mask.bool()[:, 1:]
+#         patch_size = self.cfg.MODEL.STRIDE_SIZE
+#         h_num = self.cfg.INPUT.SIZE_TRAIN[0] // patch_size
+#         x_enc = self.encoder_to_decoder(x_enc)[:, 1:] # drop cls token
+#         B, _, C = x_enc.shape
+#         x_vis = x_enc[~mask].reshape(B, -1, C)
+#         expand_pos_embed = self.abs_pos_embed.expand(B, -1, -1).type_as(x_enc).to(x.device).clone().detach()
+#         pos_emd_vis = expand_pos_embed[~mask].reshape(B, -1, C)
+#         pos_emd_mask = expand_pos_embed[mask].reshape(B, -1, C)
+#         x_full = torch.cat([x_vis + pos_emd_vis, self.mask_token + pos_emd_mask], dim=1)
+#         # x_inpaint = self.decoder(x_full, pos_emd_mask.shape[1])
+#         x_full = rearrange(x_full, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', p1=patch_size, p2=patch_size, h=h_num)
+#         x_inpaint = self.decoder(x_full)
+#         x_inpaint = self.decoder_to_discriminator(x_inpaint)[:,1:]
+#         x_inpaint = rearrange(x_inpaint, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', p1=patch_size, p2=patch_size, h=h_num)
+#         # x_ = self.decoder_to_discriminator(x_inpaint)
+#         d_fake = torch.sigmoid(self.d_head(self.discriminator(x_inpaint)[:, 0])).squeeze()
+#         d_real = torch.sigmoid(self.d_head(self.discriminator(x)[:, 0])).squeeze()
+#         return cls_score, global_feat, x_inpaint, d_real, d_fake
 
 
-###### solve DG problem with colorization
-class build_DG_color_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        self.model_path = os.path.join(model_path_base, path)
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 768
+#         # # x_enc = self.encoder_to_decoder(x_enc)
+#         # x = rearrange(x, 'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1=self.cfg.MODEL.STRIDE_SIZE, p2=self.cfg.MODEL.STRIDE_SIZE)
+#         # pos_embed = self.abs_pos_embed.to(x.device.type)
+#         # x_feat = self.decoder(x_enc[:,1:]+pos_embed)
+#         # # ori_feat = self.decoder(x+pos_embed)
 
-        print('using Transformer_type: vit as a backbone')
+#         # return cls_score, global_feat, x_feat,\
+#         #     #  ori_feat
 
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-        ## backbone
-        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
-            (img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            norm=norm)
-        if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
-            self.in_planes = 384
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
-            self.in_planes = 192
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
-            self.in_planes = 1024
-        if self.pretrain_choice == 'imagenet':
-            self.base.load_param(self.model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
+#     def load_param(self, trained_path):
+#         param_dict = torch.load(trained_path)
+#         for i in param_dict:
+#             if 'classifier' in i: # drop classifier
+#                 continue
+#             if 'bottleneck' in i:
+#                 continue
+#             self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
+#         print('Loading trained model from {}'.format(trained_path))
+
+#     def load_param_finetune(self, model_path):
+#         param_dict = torch.load(model_path)
+#         for i in param_dict:
+#             self.state_dict()[i].copy_(param_dict[i])
+#         print('Loading pretrained model for finetuning from {}'.format(model_path))
+
+#     def compute_num_params(self):
+#         total = sum([param.nelement() for param in self.parameters()])
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Number of parameter: %.2fM" % (total/1e6))
+
+# class colorize_decoder(nn.Module):
+#     def __init__(self) -> None:
+#         super().__init__()
+
+
+# ###### solve DG problem with colorization
+# class build_DG_color_vit(nn.Module):
+#     def __init__(self, num_classes, cfg, factory):
+#         super().__init__()
+#         self.cfg = cfg
+#         model_path_base = cfg.MODEL.PRETRAIN_PATH
+#         path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+#         self.model_path = os.path.join(model_path_base, path)
+#         self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+#         self.cos_layer = cfg.MODEL.COS_LAYER
+#         self.neck = cfg.MODEL.NECK
+#         self.neck_feat = cfg.TEST.NECK_FEAT
+#         self.in_planes = 768
+
+#         print('using Transformer_type: vit as a backbone')
+
+#         self.gap = nn.AdaptiveAvgPool2d(1)
+#         self.num_classes = num_classes
+#         norm = norm_layer[cfg.MODEL.NORM.TYPE]
+#         ## backbone
+#         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
+#             (img_size=cfg.INPUT.SIZE_TRAIN,
+#             stride_size=cfg.MODEL.STRIDE_SIZE,
+#             drop_path_rate=cfg.MODEL.DROP_PATH,
+#             drop_rate= cfg.MODEL.DROP_OUT,
+#             attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+#             norm=norm)
+#         if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
+#             self.in_planes = 384
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
+#             self.in_planes = 192
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
+#             self.in_planes = 1024
+#         if self.pretrain_choice == 'imagenet':
+#             self.base.load_param(self.model_path)
+#             print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
         
-        ## head & BNNeck
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
+#         ## head & BNNeck
+#         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+#         self.classifier.apply(weights_init_classifier)
+#         self.bottleneck = nn.BatchNorm1d(self.in_planes)
+#         self.bottleneck.bias.requires_grad_(False)
+#         self.bottleneck.apply(weights_init_kaiming)
 
-        # decoder for img reconstruction
-        de_norm = norm_layer[cfg.MODEL.DECODER.NORM]
-        self.decoder = color_vit_decoder(
-            num_classes=2*cfg.MODEL.STRIDE_SIZE**2,
-            # embed_dim=cfg.MODEL.DECODER.DIM,
-            embed_dim=2*cfg.MODEL.STRIDE_SIZE**2,
-            depth=cfg.MODEL.DECODER.DEPTH,
-            num_heads=cfg.MODEL.DECODER.NUM_HEAD,
-            mlp_ratio=cfg.MODEL.DECODER.MLP_RATIO,
-            norm_layer=de_norm
-            # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
-            # embed_dim=3*cfg.MODEL.STRIDE_SIZE**2,
-            # depth=len(self.base.blocks),
-            # num_heads=self.base.num_heads,
-            # mlp_ratio=self.base.mlp_ratio
-        )
-        if self.in_planes == self.decoder.embed_dim:
-            self.encoder_to_decoder = nn.Identity()
-        else:
-            self.encoder_to_decoder = nn.Linear(self.in_planes, self.decoder.embed_dim, bias=False)
+#         # decoder for img reconstruction
+#         de_norm = norm_layer[cfg.MODEL.DECODER.NORM]
+#         self.decoder = color_vit_decoder(
+#             num_classes=2*cfg.MODEL.STRIDE_SIZE**2,
+#             # embed_dim=cfg.MODEL.DECODER.DIM,
+#             embed_dim=2*cfg.MODEL.STRIDE_SIZE**2,
+#             depth=cfg.MODEL.DECODER.DEPTH,
+#             num_heads=cfg.MODEL.DECODER.NUM_HEAD,
+#             mlp_ratio=cfg.MODEL.DECODER.MLP_RATIO,
+#             norm_layer=de_norm
+#             # num_classes=3*cfg.MODEL.STRIDE_SIZE**2,
+#             # embed_dim=3*cfg.MODEL.STRIDE_SIZE**2,
+#             # depth=len(self.base.blocks),
+#             # num_heads=self.base.num_heads,
+#             # mlp_ratio=self.base.mlp_ratio
+#         )
+#         if self.in_planes == self.decoder.embed_dim:
+#             self.encoder_to_decoder = nn.Identity()
+#         else:
+#             self.encoder_to_decoder = nn.Linear(self.in_planes, self.decoder.embed_dim, bias=False)
 
-        self.abs_pos_embed = get_sinusoid_encoding_table(self.base.patch_embed.num_patches, self.decoder.embed_dim)
+#         self.abs_pos_embed = get_sinusoid_encoding_table(self.base.patch_embed.num_patches, self.decoder.embed_dim)
 
-        logger = logging.getLogger('reid.train')
-        logger.info("Decoder: {:.2f}M".format(self.decoder.compute_num_params()))
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Decoder: {:.2f}M".format(self.decoder.compute_num_params()))
 
-        self.ab_head = nn.Linear(self.decoder.embed_dim, 2*cfg.MODEL.STRIDE_SIZE**2, bias=False) # Lab
-        # self.d_head = nn.Identity()
+#         self.ab_head = nn.Linear(self.decoder.embed_dim, 2*cfg.MODEL.STRIDE_SIZE**2, bias=False) # Lab
+#         # self.d_head = nn.Identity()
 
-    def forward(self, x, vis=False):
-        if not self.training and not vis:
-            x = self.base(x) # B, N, C
-            global_feat = x[:, 0] # cls token for global feature
-            feat = self.bottleneck(global_feat)
-            return feat if self.neck_feat == 'after' else global_feat
+#     def forward(self, x, vis=False):
+#         if not self.training and not vis:
+#             x = self.base(x) # B, N, C
+#             global_feat = x[:, 0] # cls token for global feature
+#             feat = self.bottleneck(global_feat)
+#             return feat if self.neck_feat == 'after' else global_feat
 
-        ## feat extract
-        x_enc = self.base(x)
-        global_feat = x_enc[:, 0] # cls token for global feature
+#         ## feat extract
+#         x_enc = self.base(x)
+#         global_feat = x_enc[:, 0] # cls token for global feature
         
-        ## head & bnneck for supervised ReID
-        feat = self.bottleneck(global_feat)
-        cls_score = self.classifier(feat)
+#         ## head & bnneck for supervised ReID
+#         feat = self.bottleneck(global_feat)
+#         cls_score = self.classifier(feat)
 
-        ## img colorization for self-supervised generalization
-        patch_size = self.cfg.MODEL.STRIDE_SIZE
-        h_num = self.cfg.INPUT.SIZE_TRAIN[0] // patch_size
-        x_enc = self.encoder_to_decoder(x_enc)[:, 1:] # drop cls token
-        x_enc += self.abs_pos_embed.to(x.device.type)
-        ab = self.decoder(x_enc)
+#         ## img colorization for self-supervised generalization
+#         patch_size = self.cfg.MODEL.STRIDE_SIZE
+#         h_num = self.cfg.INPUT.SIZE_TRAIN[0] // patch_size
+#         x_enc = self.encoder_to_decoder(x_enc)[:, 1:] # drop cls token
+#         x_enc += self.abs_pos_embed.to(x.device.type)
+#         ab = self.decoder(x_enc)
 
-        ab = rearrange(ab, 'B (h w) (p1 p2 c) -> B c (h p1) (w p2)', h=h_num, p1=patch_size, p2=patch_size)
+#         ab = rearrange(ab, 'B (h w) (p1 p2 c) -> B c (h p1) (w p2)', h=h_num, p1=patch_size, p2=patch_size)
 
-        return cls_score, global_feat, ab
+#         return cls_score, global_feat, ab
 
 
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        count = 0
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            if 'bottleneck' in i:
-                continue
-            if i in self.state_dict().keys():
-                self.state_dict()[i].copy_(param_dict[i])
-                count += 1
-        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
+#     def load_param(self, trained_path):
+#         param_dict = torch.load(trained_path)
+#         count = 0
+#         for i in param_dict:
+#             if 'classifier' in i: # drop classifier
+#                 continue
+#             if 'bottleneck' in i:
+#                 continue
+#             if i in self.state_dict().keys():
+#                 self.state_dict()[i].copy_(param_dict[i])
+#                 count += 1
+#         print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
 
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
+#     def load_param_finetune(self, model_path):
+#         param_dict = torch.load(model_path)
+#         for i in param_dict:
+#             self.state_dict()[i].copy_(param_dict[i])
+#         print('Loading pretrained model for finetuning from {}'.format(model_path))
 
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
+#     def compute_num_params(self):
+#         total = sum([param.nelement() for param in self.parameters()])
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
-###### solve DG problem with rotation prediction
-class build_DG_rotation_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        self.model_path = os.path.join(model_path_base, path)
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 768
+# ###### solve DG problem with rotation prediction
+# class build_DG_rotation_vit(nn.Module):
+#     def __init__(self, num_classes, cfg, factory):
+#         super().__init__()
+#         self.cfg = cfg
+#         model_path_base = cfg.MODEL.PRETRAIN_PATH
+#         path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+#         self.model_path = os.path.join(model_path_base, path)
+#         self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+#         self.cos_layer = cfg.MODEL.COS_LAYER
+#         self.neck = cfg.MODEL.NECK
+#         self.neck_feat = cfg.TEST.NECK_FEAT
+#         self.in_planes = 768
 
-        print('using Transformer_type: vit as a backbone')
+#         print('using Transformer_type: vit as a backbone')
 
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-        ## backbone
-        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
-            (img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            norm=norm)
-        if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
-            self.in_planes = 384
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
-            self.in_planes = 192
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
-            self.in_planes = 1024
-        if self.pretrain_choice == 'imagenet':
-            self.base.load_param(self.model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
+#         self.gap = nn.AdaptiveAvgPool2d(1)
+#         self.num_classes = num_classes
+#         norm = norm_layer[cfg.MODEL.NORM.TYPE]
+#         ## backbone
+#         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
+#             (img_size=cfg.INPUT.SIZE_TRAIN,
+#             stride_size=cfg.MODEL.STRIDE_SIZE,
+#             drop_path_rate=cfg.MODEL.DROP_PATH,
+#             drop_rate= cfg.MODEL.DROP_OUT,
+#             attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+#             norm=norm)
+#         if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
+#             self.in_planes = 384
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
+#             self.in_planes = 192
+#         elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
+#             self.in_planes = 1024
+#         if self.pretrain_choice == 'imagenet':
+#             self.base.load_param(self.model_path)
+#             print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
         
-        ## head & BNNeck
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
+#         ## head & BNNeck
+#         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+#         self.classifier.apply(weights_init_classifier)
+#         self.bottleneck = nn.BatchNorm1d(self.in_planes)
+#         self.bottleneck.bias.requires_grad_(False)
+#         self.bottleneck.apply(weights_init_kaiming)
 
-        # head for rotation prediction
-        self.rotation_head = nn.Linear(self.in_planes, 2, bias=False)
+#         # head for rotation prediction
+#         self.rotation_head = nn.Linear(self.in_planes, 2, bias=False)
 
-    def forward(self, x, vis=False):
-        if not self.training and not vis:
-            x = self.base(x) # B, N, C
-            global_feat = x[:, 0] # cls token for global feature
-            feat = self.bottleneck(global_feat)
-            return feat if self.neck_feat == 'after' else global_feat
+#     def forward(self, x, vis=False):
+#         if not self.training and not vis:
+#             x = self.base(x) # B, N, C
+#             global_feat = x[:, 0] # cls token for global feature
+#             feat = self.bottleneck(global_feat)
+#             return feat if self.neck_feat == 'after' else global_feat
 
-        ## feat extract
-        x_enc = self.base(x)
-        global_feat = x_enc[:, 0] # cls token for global feature
+#         ## feat extract
+#         x_enc = self.base(x)
+#         global_feat = x_enc[:, 0] # cls token for global feature
         
-        ## head & bnneck for supervised ReID
-        feat = self.bottleneck(global_feat)
-        cls_score = self.classifier(feat)
+#         ## head & bnneck for supervised ReID
+#         feat = self.bottleneck(global_feat)
+#         cls_score = self.classifier(feat)
 
-        ## rotation prediction
-        rotation_cls = self.rotation_head(global_feat)
+#         ## rotation prediction
+#         rotation_cls = self.rotation_head(global_feat)
 
-        return cls_score, global_feat, rotation_cls
+#         return cls_score, global_feat, rotation_cls
 
 
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        count = 0
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            if 'bottleneck' in i:
-                continue
-            if i in self.state_dict().keys():
-                self.state_dict()[i].copy_(param_dict[i])
-                count += 1
-        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
+#     def load_param(self, trained_path):
+#         param_dict = torch.load(trained_path)
+#         count = 0
+#         for i in param_dict:
+#             if 'classifier' in i: # drop classifier
+#                 continue
+#             if 'bottleneck' in i:
+#                 continue
+#             if i in self.state_dict().keys():
+#                 self.state_dict()[i].copy_(param_dict[i])
+#                 count += 1
+#         print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
 
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
+#     def load_param_finetune(self, model_path):
+#         param_dict = torch.load(model_path)
+#         for i in param_dict:
+#             self.state_dict()[i].copy_(param_dict[i])
+#         print('Loading pretrained model for finetuning from {}'.format(model_path))
 
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
+#     def compute_num_params(self):
+#         total = sum([param.nelement() for param in self.parameters()])
+#         logger = logging.getLogger('reid.train')
+#         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
 '''
 local attention vit

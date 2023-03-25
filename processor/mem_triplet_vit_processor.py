@@ -1,11 +1,14 @@
+import collections
 import logging
 import os
 import time
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from loss.triplet_loss import euclidean_dist, hard_example_mining
 from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
 from model.backbones.memory import FeatureMemory
+from model.extract_features import extract_features
 from model.make_model import make_model
 from processor.inf_processor import do_inference
 from utils.meter import AverageMeter
@@ -66,8 +69,24 @@ def mem_triplet_vit_do_train_with_amp(cfg,
     classes = len(train_loader.dataset.pids)
     center_weight = cfg.SOLVER.CENTER_LOSS_WEIGHT
 
+    #### tri-hard memory init
+    fea_mem = []
+    for i,testname in enumerate(cfg.DATASETS.TRAIN):
+        sour_cluster_loader, _ = build_reid_test_loader(cfg, testname, bs=256, flag_test=False)
+        source_features, labels = extract_features(model.base, sour_cluster_loader, print_freq=20)
+        sour_fea_dict = collections.defaultdict(list)
+        for k in source_features.keys():
+            sour_fea_dict[labels[k]].append(source_features[k].unsqueeze(0))
 
-    fea_mem = [FeatureMemory(768, num_pids[i]) for i in range(len(num_pids))]
+        source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
+        source_centers = torch.stack(source_centers, 0)  ## pid,dim
+    
+        curMemo = FeatureMemory(cfg.MODEL.DIM, source_centers.shape[0]).cuda()
+        curMemo.feats = source_centers
+        fea_mem.append(curMemo)
+
+        del source_centers, sour_cluster_loader, sour_fea_dict
+    logger.info("Memories initiation done.") 
 
 
     best = 0.0
@@ -125,7 +144,9 @@ def mem_triplet_vit_do_train_with_amp(cfg,
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
+                # t0 = time.time()
                 score, feat, targets, score_ = model(img, targets, t_domains)
+                # print("model time:",time.time()-t0)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score)
                 targets = 0.9 * targets + 0.1 / classes # label smooth
@@ -152,6 +173,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
                 #     loss_id_distinct += memories[i](s, label).mean()
 
                 #### memory-based tri-hard loss
+                # t0 = time.time()
                 tri_hard_loss = torch.tensor(0.0, device=device)
                 for i in range(len(num_pids)):
                     idx = torch.nonzero(t_domains==i).squeeze()
@@ -159,6 +181,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
                     fea_mem[i] = fea_mem[i].to(device)
                     tri_hard_loss += fea_mem[i](feat[idx], ori_label[idx])
                 loss_tri = tri_hard_loss
+                # print("tri hard time:", time.time()-t0)
                 # #### triplet loss
                 # target = targets.max(1)[1] ###### for mixup
                 # dist_mat = euclidean_dist(feat, feat)
