@@ -154,9 +154,9 @@ def mem_triplet_vit_do_train_with_amp(cfg,
                 #### memory-based tri-hard loss
                 tri_hard_loss = torch.tensor(0.0, device=device)
                 for i in range(len(num_pids)):
-                    fea_mem[i] = fea_mem[i].to(device)
                     idx = torch.nonzero(t_domains==i).squeeze()
                     if len(idx) == 0: continue
+                    fea_mem[i] = fea_mem[i].to(device)
                     tri_hard_loss += fea_mem[i](feat[idx], ori_label[idx])
                 loss_tri = tri_hard_loss
                 # #### triplet loss

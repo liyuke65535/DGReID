@@ -81,11 +81,14 @@ class FeatureMemory(nn.Module):
 
         self.saved_tensors = None
     def momentum_update(self):
+        if self.saved_tensors is None:
+            print("None saved tensors!!!!!!")
+            return
         x, labels = self.saved_tensors[0], self.saved_tensors[1]
         self.feats[labels] = self.feats[labels] * self.momentum + x * (1-self.momentum)
 
     def save_tensors(self, x, labels):
-        self.saved_tensors = [x, labels]
+        self.saved_tensors = [x.detach(), labels]
 
     def forward(self, x, labels):
         dist_mat = euclidean_dist(x,x)
