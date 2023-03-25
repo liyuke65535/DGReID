@@ -214,7 +214,7 @@ class mix_vit(nn.Module):
         num_domains = kwargs['num_domains']
         self.num_domains = num_domains
 
-        # self.mixstyle = MixStyle()
+        self.mixstyle = MixStyle()
         # self.efdmix = EFDMix()
         # self.mixhm = MixHistogram()
         # self.mixup = Mixup()
@@ -281,8 +281,8 @@ class mix_vit(nn.Module):
                 # x, y = self.mixup(x, labels)
                 # if y is not None: labels = y
                 
-                # #### mixstyle (skip cls token)
-                # x[:, 1:] = self.mixstyle(x[:, 1:])
+                #### mixstyle (skip cls token)
+                x[:, 1:] = self.mixstyle(x[:, 1:])
 
                 #### efdmix
                 # x = self.efdmix(x)
@@ -292,8 +292,8 @@ class mix_vit(nn.Module):
                 # #### domainmix
                 # x[:, 1:] = self.domainmix[i](x[:, 1:], domain)
 
-                #### domainqueue (skip cls token)
-                x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
+                # #### domainqueue (skip cls token)
+                # x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
 
                 # #### domainqueue (skip cls token)
                 # x = self.domainqueue[i](x, domain)
@@ -303,7 +303,7 @@ class mix_vit(nn.Module):
 
         # return x[:, 0]
         # return x # (B, N, C)
-        return x, labels
+        return x
 
     def forward(self, x, labels=None, domain=None):
         x = self.forward_features(x, labels=labels, domain=domain)
