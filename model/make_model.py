@@ -1322,6 +1322,9 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
         print('===========building XDED vit===========')
     elif modelname == 'mem_vit':
         model = build_memory_cls_vit(num_class, cfg, __factory_T_type)
+    elif modelname == 'mem_tri_vit':
+        model = build_mix_vit(num_class, cfg, __factory_PT_type)
+        print('===========building mem tri mix vit===========')
     # elif modelname == 'mask_vit':
     #     model = build_mask_vit(num_class, cfg, __factory_T_type)
     #     print('===========building mask vit===========')

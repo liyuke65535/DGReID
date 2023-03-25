@@ -15,7 +15,7 @@ import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
 
-def ori_vit_do_train_with_amp(cfg,
+def mem_triplet_vit_do_train_with_amp(cfg,
              model,
              center_criterion,
              train_loader,
@@ -154,7 +154,9 @@ def ori_vit_do_train_with_amp(cfg,
                 #### memory-based tri-hard loss
                 tri_hard_loss = torch.tensor(0.0, device=device)
                 for i in range(len(num_pids)):
+                    fea_mem[i] = fea_mem[i].to(device)
                     idx = torch.nonzero(t_domains==i).squeeze()
+                    if len(idx) == 0: continue
                     tri_hard_loss += fea_mem[i](feat[idx], ori_label[idx])
                 loss_tri = tri_hard_loss
                 # #### triplet loss
@@ -185,6 +187,12 @@ def ori_vit_do_train_with_amp(cfg,
 
             scaler.step(optimizer)
             scaler.update()
+
+            #### momentum update
+            for i in range(len(num_pids)):
+                idx = torch.nonzero(t_domains==i).squeeze()
+                if len(idx)==0: continue
+                fea_mem[i].momentum_update()
 
             if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                 for param in center_criterion.parameters():

@@ -77,8 +77,15 @@ class FeatureMemory(nn.Module):
         self.register_buffer("feats", torch.zeros(num_pids, num_features))
         self.feats.requires_grad = False
 
-    def momentum_update(self, x, labels):
+        self.ranking_loss = nn.SoftMarginLoss()
+
+        self.saved_tensors = None
+    def momentum_update(self):
+        x, labels = self.saved_tensors[0], self.saved_tensors[1]
         self.feats[labels] = self.feats[labels] * self.momentum + x * (1-self.momentum)
+
+    def save_tensors(self, x, labels):
+        self.saved_tensors = [x, labels]
 
     def forward(self, x, labels):
         dist_mat = euclidean_dist(x,x)
@@ -90,11 +97,11 @@ class FeatureMemory(nn.Module):
             dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
         fea = self.feats
         dist_mat2 = euclidean_dist(x, fea)
-        one_hot_labels = torch.zeros([N, self.num_pids]).scatter_(1, labels.unsqueeze(1).data.cpu(), 1).to(x.device)
+        one_hot_labels = torch.zeros([N, self.num_pids]).scatter_(1, labels.unsqueeze(1).data.cpu(), 1)
         dist_an, relative_n_inds = torch.min(
-            dist_mat2[~one_hot_labels].contiguous().view(N, -1), 1, keepdim=True)
+            dist_mat2[~one_hot_labels.bool()].contiguous().view(N, -1), 1, keepdim=True)
         y = torch.ones_like(dist_an)
         loss = self.ranking_loss(dist_an - dist_ap, y)
 
-        self.momentum_update(x, labels)
+        self.save_tensors(x, labels)
         return loss
