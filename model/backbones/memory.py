@@ -98,10 +98,10 @@ class FeatureMemory(nn.Module):
         self.saved_tensors = [x.detach(), labels]
 
     def forward(self, x, labels):
-        dist_mat = euclidean_dist(x,x)
-        assert dist_mat.dim() == 2
-        assert dist_mat.size(0) == dist_mat.size(1)
-        N = dist_mat.size(0)
+        # dist_mat = euclidean_dist(x,x)
+        # assert dist_mat.dim() == 2
+        # assert dist_mat.size(0) == dist_mat.size(1)
+        N = x.size(0)
         is_pos = labels.expand(N, N).eq(labels.expand(N,N).t())
         # dist_ap, relative_p_inds = torch.max(
         #     dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
