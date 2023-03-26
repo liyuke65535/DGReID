@@ -166,7 +166,7 @@ class Backbone(nn.Module):
                 cls_score = self.arcface(feat, label)
             else:
                 cls_score = self.classifier(feat)
-            return cls_score, global_feat
+            return cls_score, global_feat, None, None
         else:
             if self.neck_feat == 'after':
                 return feat
