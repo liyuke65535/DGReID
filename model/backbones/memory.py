@@ -1,3 +1,4 @@
+import random
 import torch
 import torch.nn.functional as F
 from torch.nn import init
@@ -67,11 +68,12 @@ class MemoryClassifier(nn.Module):
 
 from loss.triplet_loss import euclidean_dist
 class FeatureMemory(nn.Module):
-    def __init__(self, num_features, num_pids, momentum=0.8) -> None:
+    def __init__(self, num_features, num_pids, momentum=0.2, num_instance=4) -> None:
         super().__init__()
         self.num_features = num_features
         self.num_pids = num_pids
         self.momentum = momentum
+        self.num_instance = num_instance
 
         self.avai_pids = []
         self.register_buffer("feats", torch.zeros(num_pids, num_features))
@@ -81,21 +83,21 @@ class FeatureMemory(nn.Module):
 
         self.saved_tensors = None
 
-    def init_memories(self, model, imgs, labels):
-        model = model.eval()
-        with torch.no_grad():
-            score, feat, targets, score_ = model(imgs)
-            self.feats[labels] = feat
+    def momentum_update(self, x, labels):
+        # if self.saved_tensors is None:
+        #     print("None saved tensors!!!!!!")
+        #     return
+        # x, labels = self.saved_tensors[0], self.saved_tensors[1]
+        ##### new
+        label = labels.unique()
+        num_id = len(label)
+        num_ins = self.num_instance
+        x = x.reshape([num_id, num_ins, -1]).mean(1)
+        ##### new
+        self.feats[label] = self.feats[label] * self.momentum + x * (1-self.momentum)
 
-    def momentum_update(self):
-        if self.saved_tensors is None:
-            print("None saved tensors!!!!!!")
-            return
-        x, labels = self.saved_tensors[0], self.saved_tensors[1]
-        self.feats[labels] = self.feats[labels] * self.momentum + x * (1-self.momentum)
-
-    def save_tensors(self, x, labels):
-        self.saved_tensors = [x.detach(), labels]
+    # def save_tensors(self, x, labels):
+    #     self.saved_tensors = [x.detach(), labels]
 
     def forward(self, x, labels):
         # dist_mat = euclidean_dist(x,x)
@@ -115,5 +117,61 @@ class FeatureMemory(nn.Module):
         y = torch.ones_like(dist_an)
         loss = self.ranking_loss(dist_an - dist_ap, y)
 
-        self.save_tensors(x, labels)
+        self.momentum_update(x.detach(), labels)
+        return loss
+    
+class FeatureQueue(nn.Module):
+    def __init__(self, num_features, num_pids, capacity=4, num_instance=4) -> None:
+        super().__init__()
+        self.num_features = num_features
+        self.num_pids = num_pids
+        self.capacity = capacity
+        self.num_instance = num_instance
+
+        self.sum = list(0 for _ in range(num_pids))
+        self.register_buffer("feats", torch.zeros(num_pids, capacity, num_features))
+        self.feats.requires_grad = False
+
+        self.ranking_loss = nn.SoftMarginLoss()
+
+        self.saved_tensors = None
+
+    def queue_update(self, x, labels):
+        label = labels.unique()
+        n = len(label)
+        num_ins = self.num_instance
+        x = x.reshape([n, num_ins, -1])
+        for i,l in enumerate(label):
+            sum = self.sum[l] % self.capacity
+            rest = self.capacity - sum
+            if num_ins > rest:
+                self.feats[l,sum:] = x[i,:rest]
+                self.feats[l,:num_ins-rest] = x[i,rest:]
+            else:
+                self.feats[l,sum:sum+num_ins] = x[i]
+            self.sum[l] = self.sum[l] + num_ins
+
+    # def save_tensors(self, x, labels):
+    #     self.saved_tensors = [x.detach(), labels]
+
+    def forward(self, x, labels):
+        # dist_mat = euclidean_dist(x,x)
+        # assert dist_mat.dim() == 2
+        # assert dist_mat.size(0) == dist_mat.size(1)
+        N = x.size(0)
+        is_pos = labels.expand(N, N).eq(labels.expand(N,N).t())
+        # dist_ap, relative_p_inds = torch.max(
+        #     dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
+        f_inds = torch.tensor([random.randint(0, self.sum[i] % self.capacity) for i in range(self.num_pids)])
+        fea = self.feats[range(self.num_pids), f_inds]
+        dist_mat2 = euclidean_dist(x, fea)
+        one_hot_labels = torch.zeros([N, self.num_pids]).scatter_(1, labels.unsqueeze(1).data.cpu(), 1)
+        dist_ap, relative_p_inds = torch.max(
+            dist_mat2[one_hot_labels.bool()].contiguous().view(N, -1), 1, keepdim=True)
+        dist_an, relative_n_inds = torch.min(
+            dist_mat2[~one_hot_labels.bool()].contiguous().view(N, -1), 1, keepdim=True)
+        y = torch.ones_like(dist_an)
+        loss = self.ranking_loss(dist_an - dist_ap, y)
+
+        self.queue_update(x.detach(), labels)
         return loss

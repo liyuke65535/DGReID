@@ -6,7 +6,7 @@ import torch.nn as nn
 class DomainQueue(nn.Module):
 
 
-    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='random', capacity=1024):
+    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='random', capacity=64):
         """
         Args:
           p (float): probability of using mix.

@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from loss.triplet_loss import euclidean_dist, hard_example_mining
 from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
-from model.backbones.memory import FeatureMemory
+from model.backbones.memory import FeatureMemory, FeatureQueue
 from model.extract_features import extract_features
 from model.make_model import make_model
 from processor.inf_processor import do_inference
@@ -35,7 +35,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
              memories=None,
              sour_centers=None):
     log_period = cfg.SOLVER.LOG_PERIOD
-    checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+    # checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
 
     device = "cuda"
@@ -72,20 +72,20 @@ def mem_triplet_vit_do_train_with_amp(cfg,
     #### tri-hard memory init
     fea_mem = []
     for i,testname in enumerate(cfg.DATASETS.TRAIN):
-        sour_cluster_loader, _ = build_reid_test_loader(cfg, testname, bs=256, flag_test=False)
-        source_features, labels = extract_features(model.base, sour_cluster_loader, print_freq=20)
-        sour_fea_dict = collections.defaultdict(list)
-        for k in source_features.keys():
-            sour_fea_dict[labels[k]].append(source_features[k].unsqueeze(0))
+        # sour_cluster_loader, _ = build_reid_test_loader(cfg, testname, bs=256, flag_test=False)
+        # source_features, labels = extract_features(model.base, sour_cluster_loader, print_freq=20)
+        # sour_fea_dict = collections.defaultdict(list)
+        # for k in source_features.keys():
+        #     sour_fea_dict[labels[k]].append(source_features[k].unsqueeze(0))
 
-        source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
-        source_centers = torch.stack(source_centers, 0)  ## pid,dim
+        # source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
+        # source_centers = torch.stack(source_centers, 0)  ## pid,dim
     
-        curMemo = FeatureMemory(cfg.MODEL.DIM, source_centers.shape[0]).cuda()
-        curMemo.feats = source_centers
+        curMemo = FeatureMemory(cfg.MODEL.DIM, num_pids[i]).cuda()
+        # curMemo.feats = source_centers
         fea_mem.append(curMemo)
 
-        del source_centers, sour_cluster_loader, sour_fea_dict
+        # del source_centers, sour_cluster_loader, sour_fea_dict
     logger.info("Memories initiation done.") 
 
 
@@ -211,11 +211,11 @@ def mem_triplet_vit_do_train_with_amp(cfg,
             scaler.step(optimizer)
             scaler.update()
 
-            #### momentum update
-            for i in range(len(num_pids)):
-                idx = torch.nonzero(t_domains==i).squeeze()
-                if len(idx)==0: continue
-                fea_mem[i].momentum_update()
+            # #### momentum update
+            # for i in range(len(num_pids)):
+            #     idx = torch.nonzero(t_domains==i).squeeze()
+            #     if len(idx)==0: continue
+            #     fea_mem[i].momentum_update()
 
             if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                 for param in center_criterion.parameters():
@@ -276,7 +276,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
                 tbWriter.add_scalar('val/Rank@1', cmc[0], epoch)
                 tbWriter.add_scalar('val/mAP', mAP, epoch)
                 torch.cuda.empty_cache()
-        if epoch % checkpoint_period == 0:
+        if epoch % eval_period == 0:
             if best < mAP + cmc[0]:
                 best = mAP + cmc[0]
                 best_index = epoch

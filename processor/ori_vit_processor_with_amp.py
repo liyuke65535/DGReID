@@ -234,7 +234,7 @@ def ori_vit_do_train_with_amp(cfg,
                 tbWriter.add_scalar('val/Rank@1', cmc[0], epoch)
                 tbWriter.add_scalar('val/mAP', mAP, epoch)
                 torch.cuda.empty_cache()
-        if epoch % checkpoint_period == 0:
+        if epoch % eval_period == 0:
             if best < mAP + cmc[0]:
                 best = mAP + cmc[0]
                 best_index = epoch
