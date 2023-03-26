@@ -67,7 +67,7 @@ class MemoryClassifier(nn.Module):
 
 from loss.triplet_loss import euclidean_dist
 class FeatureMemory(nn.Module):
-    def __init__(self, num_features, num_pids, momentum=0.9) -> None:
+    def __init__(self, num_features, num_pids, momentum=0.8) -> None:
         super().__init__()
         self.num_features = num_features
         self.num_pids = num_pids
