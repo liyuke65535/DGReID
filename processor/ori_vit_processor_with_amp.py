@@ -88,8 +88,8 @@ def ori_vit_do_train_with_amp(cfg,
                     if 'bn' in name:
                         mod.eval()
                         # totally freezed BN
-                        mod.weight.requires_grad_(False)
-                        mod.bias.requires_grad_(False)
+                        # mod.weight.requires_grad_(False)
+                        # mod.bias.requires_grad_(False)
                 print("====== freeze BNs ======")
             else:
                 for name, mod in model.base.named_modules():

@@ -149,7 +149,7 @@ class Backbone(nn.Module):
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
-    def forward(self, x, label=None):  # label is unused if self.cos_layer == 'no'
+    def forward(self, x, label=None, domains=None):  # label is unused if self.cos_layer == 'no'
         x = self.base(x) # B, C, h, w
         
         global_feat = nn.functional.avg_pool2d(x, x.shape[2:4])
