@@ -281,8 +281,8 @@ class mix_vit(nn.Module):
                 # x, y = self.mixup(x, labels)
                 # if y is not None: labels = y
                 
-                #### mixstyle (skip cls token)
-                x[:, 1:] = self.mixstyle(x[:, 1:])
+                # #### mixstyle (skip cls token)
+                # x[:, 1:] = self.mixstyle(x[:, 1:])
 
                 #### efdmix
                 # x = self.efdmix(x)
@@ -295,8 +295,8 @@ class mix_vit(nn.Module):
                 # #### domainqueue (skip cls token)
                 # x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
 
-                # #### domainqueue (skip cls token)
-                # x = self.domainqueue[i](x, domain)
+                #### domainqueue
+                x = self.domainqueue[i](x, domain)
             x = blk(x)
 
         x = self.norm(x)
