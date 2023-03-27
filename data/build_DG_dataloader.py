@@ -189,7 +189,7 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
                  mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
     from model import make_model
-    model = make_model(cfg, modelname=cfg.MODEL.NAME)
+    model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
     data_sampler = samplers.GraphSampler(train_set.img_items,
                                          model, mini_batch_size, num_instance)
     # if not cfg.DATALOADER.RANDOM_BATCH:
