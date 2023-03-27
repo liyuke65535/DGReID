@@ -128,14 +128,14 @@ def mem_triplet_vit_do_train_with_amp(cfg,
                         mod.weight.requires_grad_(False)
                         mod.bias.requires_grad_(False)
                 print("====== freeze BNs ======")
-            else:
-                for name, mod in model.base.named_modules():
-                    if 'norm' in name:
-                        mod.eval()
-                        # totally freezed LN
-                        mod.weight.requires_grad_(False)
-                        mod.bias.requires_grad_(False)
-                print("====== freeze LNs ======")
+            # else:
+            #     for name, mod in model.base.named_modules():
+            #         if 'norm' in name:
+            #             mod.eval()
+            #             # totally freezed LN
+            #             mod.weight.requires_grad_(False)
+            #             mod.bias.requires_grad_(False)
+            #     print("====== freeze LNs ======")
             
         
         for n_iter, informations in enumerate(train_loader):

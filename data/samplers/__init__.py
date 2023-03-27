@@ -1,2 +1,3 @@
 from .triplet_sampler import BalancedIdentitySampler, NaiveIdentitySampler, DomainSuffleSampler, RandomIdentitySampler, DomainIdentitySampler
 from .data_sampler import TrainingSampler, InferenceSampler
+from .graph_sampler import GraphSampler
