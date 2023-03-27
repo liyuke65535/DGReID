@@ -4,7 +4,7 @@ import random
 from torch.distributions.normal import Normal
 
 class DomainMix(nn.Module):
-    def __init__(self, num_features, num_domains, momentum=0.9, p=0.5, alpha=0.1, eps=1e-6):
+    def __init__(self, num_features, num_domains, momentum=0.5, p=0.5, alpha=0.1, eps=1e-6):
         super().__init__()
         self.num_features = num_features
         self.num_domains = num_domains
@@ -71,7 +71,7 @@ class DomainMix(nn.Module):
         # dom_num = random.randint(1, self.num_domains)
         # dom_ind = random.choices(range(0, self.num_domains), k=dom_num)
 
-        #### mixstyle (mix mean and sigma)
+        #### mixstyle like (mix mean and sigma)
         mean_mix = lmda * x.mean(1,keepdim=True) + (1-lmda) * self.mean[domain_select].detach().unsqueeze(1)
         var_mix = lmda * x.var(1, keepdim=True) + (1-lmda) * self.var[domain_select].detach().unsqueeze(1)
         x_mix = x_normed*torch.sqrt(var_mix + eps) + mean_mix

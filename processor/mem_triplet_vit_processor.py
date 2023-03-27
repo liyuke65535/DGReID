@@ -1,4 +1,5 @@
 import collections
+import copy
 import logging
 import os
 import time
@@ -17,6 +18,16 @@ from torch.cuda import amp
 import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
+
+
+def update_model_ema(model, ema_model, alpha):
+    model_state = model.state_dict()
+    model_ema_state = ema_model.state_dict()
+    new_dict = {}
+    for key in model_state:
+        new_dict[key] = alpha * model_ema_state[key] + (1 - alpha) * model_state[key]
+    ema_model.load_state_dict(new_dict)
+
 
 def mem_triplet_vit_do_train_with_amp(cfg,
              model,
@@ -50,6 +61,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
     
     if device:
         model.to(local_rank)
+        ema_model = copy.deepcopy(model).to(local_rank)
         if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
             print('Using {} GPUs for training'.format(torch.cuda.device_count()))
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=True)
@@ -81,7 +93,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
         # source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
         # source_centers = torch.stack(source_centers, 0)  ## pid,dim
     
-        curMemo = FeatureMemory(cfg.MODEL.DIM, num_pids[i]).cuda()
+        curMemo = FeatureQueue(cfg.MODEL.DIM, num_pids[i]).cuda()
         # curMemo.feats = source_centers
         fea_mem.append(curMemo)
 
@@ -104,6 +116,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
         evaluator.reset()
         scheduler.step(epoch)
         model.train()
+        ema_model.eval()
         
         ##### for fixed BN test
         if cfg.MODEL.FIXED_RES_BN:
@@ -143,9 +156,12 @@ def mem_triplet_vit_do_train_with_amp(cfg,
 
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
+            ema_model.to(device)
             with amp.autocast(enabled=True):
                 # t0 = time.time()
                 score, feat, targets, score_ = model(img, targets, t_domains)
+                with torch.no_grad():
+                    feat_ema = ema_model(img)
                 # print("model time:",time.time()-t0)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score)
@@ -179,7 +195,7 @@ def mem_triplet_vit_do_train_with_amp(cfg,
                     idx = torch.nonzero(t_domains==i).squeeze()
                     if len(idx) == 0: continue
                     fea_mem[i] = fea_mem[i].to(device)
-                    tri_hard_loss += fea_mem[i](feat[idx], ori_label[idx])
+                    tri_hard_loss += fea_mem[i](feat[idx], feat_ema[idx], ori_label[idx])
                 loss_tri = tri_hard_loss
                 # print("tri hard time:", time.time()-t0)
                 # #### triplet loss
@@ -211,11 +227,8 @@ def mem_triplet_vit_do_train_with_amp(cfg,
             scaler.step(optimizer)
             scaler.update()
 
-            # #### momentum update
-            # for i in range(len(num_pids)):
-            #     idx = torch.nonzero(t_domains==i).squeeze()
-            #     if len(idx)==0: continue
-            #     fea_mem[i].momentum_update()
+            #### momentum update (0.999)
+            update_model_ema(model, ema_model, 0.999)
 
             if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                 for param in center_criterion.parameters():

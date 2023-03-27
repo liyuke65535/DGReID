@@ -153,6 +153,7 @@ def ori_vit_do_train_with_amp(cfg,
                 dist_ap, dist_an = hard_example_mining_for_mixup(dist_mat, target)
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
+                # loss_tri = torch.tensor(0.0, device=device)
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                     loss_center = center_criterion(feat, target)

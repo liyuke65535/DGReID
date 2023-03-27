@@ -288,12 +288,12 @@ class build_vit(nn.Module):
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
-        #### multi-domain head
-        if num_cls_dom_wise is not None:
-            self.classifiers = nn.ModuleList(
-                nn.Linear(self.in_planes, num_cls_dom_wise[i])\
-                    for i in range(len(num_cls_dom_wise))
-            )
+        # #### multi-domain head
+        # if num_cls_dom_wise is not None:
+        #     self.classifiers = nn.ModuleList(
+        #         nn.Linear(self.in_planes, num_cls_dom_wise[i])\
+        #             for i in range(len(num_cls_dom_wise))
+        #     )
 
     def forward(self, x, target=None, domain=None):
         x = self.base(x) # B, N, C

@@ -89,12 +89,12 @@ class FeatureMemory(nn.Module):
         #     return
         # x, labels = self.saved_tensors[0], self.saved_tensors[1]
         ##### new
-        label = labels.unique()
-        num_id = len(label)
-        num_ins = self.num_instance
-        x = x.reshape([num_id, num_ins, -1]).mean(1)
-        ##### new
-        self.feats[label] = self.feats[label] * self.momentum + x * (1-self.momentum)
+        # labels = labels.unique()
+        # num_id = len(labels)
+        # num_ins = self.num_instance
+        # x = x.reshape([num_id, num_ins, -1]).mean(1)
+        # ##### new
+        self.feats[labels] = self.feats[labels] * self.momentum + x * (1-self.momentum)
 
     # def save_tensors(self, x, labels):
     #     self.saved_tensors = [x.detach(), labels]
@@ -154,7 +154,7 @@ class FeatureQueue(nn.Module):
     # def save_tensors(self, x, labels):
     #     self.saved_tensors = [x.detach(), labels]
 
-    def forward(self, x, labels):
+    def forward(self, x, x_ema, labels):
         # dist_mat = euclidean_dist(x,x)
         # assert dist_mat.dim() == 2
         # assert dist_mat.size(0) == dist_mat.size(1)
@@ -173,5 +173,5 @@ class FeatureQueue(nn.Module):
         y = torch.ones_like(dist_an)
         loss = self.ranking_loss(dist_an - dist_ap, y)
 
-        self.queue_update(x.detach(), labels)
+        self.queue_update(x_ema.detach(), labels)
         return loss
