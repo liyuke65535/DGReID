@@ -2,6 +2,8 @@ import copy
 import logging
 import os
 
+from data.data_utils import read_image
+
 class Dataset(object):
     """An abstract class representing a Dataset.
     This is the base class for ``ImageDataset`` and ``VideoDataset``.
@@ -175,3 +177,17 @@ class ImageDataset(Dataset):
         logger.info('  query    | {:5d} | {:8d} | {:9d}'.format(num_query_pids, len(self.query), num_query_cams))
         logger.info('  gallery  | {:5d} | {:8d} | {:9d}'.format(num_gallery_pids, len(self.gallery), num_gallery_cams))
         logger.info('  ----------------------------------------')
+
+
+class BaseDataset(Dataset):
+    def __init__(self, train, query, gallery, transform=None, mode='train', combineall=False, verbose=True, **kwargs):
+        super().__init__(train, query, gallery, transform, mode, combineall, verbose, **kwargs)
+
+    def __getitem__(self, index):
+        img_path, pid, camid, others = self.data[index]
+        img = read_image(img_path)
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, pid, camid, others, img_path.split('/')[-1]

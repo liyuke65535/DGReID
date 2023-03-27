@@ -16,7 +16,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler
 
-from data.datasets.bases import ImageDataset
+from data.datasets.bases import BaseDataset, Dataset, ImageDataset
 
 # from .preprocessing import Preprocessor
 # from reid.evaluators import extract_features, pairwise_distance
@@ -52,7 +52,7 @@ def extract_features(model, data_loader, verbose=False):
 
     is_train = model.base.patch_embed.training
     model = model.cuda().eval()
-    for i, (imgs, pids, _, _, fnames) in enumerate(data_loader):
+    for i, (imgs, pids, camids, others, fnames) in enumerate(data_loader):
         data_time += time.time() - end
         end = time.time()
 
@@ -74,7 +74,7 @@ def extract_features(model, data_loader, verbose=False):
     return features, labels
 
 class GraphSampler(Sampler):
-    def __init__(self, data_source, model, batch_size=64, num_instance=4, num_workers=8, transform=None, 
+    def __init__(self, data_source, model, batch_size=256, num_instance=4, num_workers=8, transform=None, 
                 gal_batch_size=256, prob_batch_size=256, save_path=None, verbose=True):
         super(GraphSampler, self).__init__(data_source)
         self.data_source = data_source
@@ -109,7 +109,7 @@ class GraphSampler(Sampler):
 
     def calc_distance(self, dataset):
         data_loader = DataLoader(
-            dataset=ImageDataset(dataset, self.transform),
+            dataset=BaseDataset(dataset,[],[], self.transform),
             batch_size=self.batch_size, num_workers=self.num_workers,
             shuffle=False, pin_memory=True)
 
