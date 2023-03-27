@@ -188,19 +188,15 @@ def fast_batch_collator(batched_inputs):
 def make_sampler(train_set, num_batch, num_instance, num_workers,
                  mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
-    from model import make_model
-    model = make_model(cfg, modelname=cfg.MODEL.NAME)
-    data_sampler = samplers.GraphSampler(train_set.img_items,
-                                         model, mini_batch_size, num_instance)
-    # if not cfg.DATALOADER.RANDOM_BATCH:
-    #     data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
-    #                                                   mini_batch_size, num_instance,train_pids)
-    # elif flag1:
-    #     data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
-    #                                                   mini_batch_size, num_instance)
-    # else:
-    #     data_sampler = samplers.DomainSuffleSampler(train_set.img_items,
-    #                                                  num_batch, num_instance, flag2, seed, cfg)
+    if not cfg.DATALOADER.RANDOM_BATCH:
+        data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
+                                                      mini_batch_size, num_instance,train_pids)
+    elif flag1:
+        data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
+                                                      mini_batch_size, num_instance)
+    else:
+        data_sampler = samplers.DomainSuffleSampler(train_set.img_items,
+                                                     num_batch, num_instance, flag2, seed, cfg)
     batch_sampler = torch.utils.data.sampler.BatchSampler(data_sampler, mini_batch_size, drop_last)
     train_loader = torch.utils.data.DataLoader(
         train_set,
