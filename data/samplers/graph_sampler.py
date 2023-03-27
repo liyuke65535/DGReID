@@ -16,7 +16,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler
 
-from datasets.bases import ImageDataset
+from data.datasets.bases import ImageDataset
 
 # from .preprocessing import Preprocessor
 # from reid.evaluators import extract_features, pairwise_distance
