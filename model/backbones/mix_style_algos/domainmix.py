@@ -4,7 +4,7 @@ import random
 from torch.distributions.normal import Normal
 
 class DomainMix(nn.Module):
-    def __init__(self, num_features, num_domains, momentum=0.5, p=0.5, alpha=0.1, eps=1e-6):
+    def __init__(self, num_features, num_domains, momentum=0.9, p=0.5, alpha=0.1, eps=1e-6):
         super().__init__()
         self.num_features = num_features
         self.num_domains = num_domains

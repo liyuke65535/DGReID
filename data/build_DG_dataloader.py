@@ -190,6 +190,9 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
 
     from model import make_model
     test_transforms = build_transforms(cfg, is_train=False)
+    cfg.defrost()
+    cfg.DATASETS.NUM_DOMAINS = len(cfg.DATASETS.TRAIN)
+    cfg.freeze()
     model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
     data_sampler = samplers.GraphSampler(train_set.img_items,
                                          model, mini_batch_size, num_instance,

@@ -52,18 +52,19 @@ def extract_features(model, data_loader, verbose=False):
 
     is_train = model.base.patch_embed.training
     model = model.cuda().eval()
-    for i, (imgs, pids, camids, others, fnames) in enumerate(data_loader):
-        data_time += time.time() - end
-        end = time.time()
+    with torch.no_grad():
+        for i, (imgs, pids, camids, others, fnames) in enumerate(data_loader):
+            data_time += time.time() - end
+            end = time.time()
 
-        # outputs, f = extract_cnn_feature(model, imgs)
-        outputs = extract_batch_feature(model, imgs)
-        for fname, output, pid in zip(fnames, outputs, pids):
-            features[fname] = output
-            labels[fname] = pid
+            # outputs, f = extract_cnn_feature(model, imgs)
+            outputs = extract_batch_feature(model, imgs)
+            for fname, output, pid in zip(fnames, outputs, pids):
+                features[fname] = output
+                labels[fname] = pid
 
-        fea_time += time.time() - end
-        end = time.time()
+            fea_time += time.time() - end
+            end = time.time()
     model = model.train()
     model.base.patch_embed.train(is_train)
 
@@ -74,7 +75,7 @@ def extract_features(model, data_loader, verbose=False):
     return features, labels
 
 class GraphSampler(Sampler):
-    def __init__(self, data_source, model, batch_size=256, num_instance=4, num_workers=8, transform=None, 
+    def __init__(self, data_source, model, batch_size=64, num_instance=4, num_workers=8, transform=None, 
                 gal_batch_size=256, prob_batch_size=256, save_path=None, verbose=True):
         super(GraphSampler, self).__init__(data_source)
         self.data_source = data_source
