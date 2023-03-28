@@ -90,6 +90,7 @@ class GraphSampler(Sampler):
         self.save_path = save_path
         self.verbose = verbose
         self.transform = transform
+        self.epoch = 0
 
         self.index_dic = defaultdict(list)
         for index, (_, pid, _, _) in enumerate(data_source):
@@ -145,7 +146,7 @@ class GraphSampler(Sampler):
             # 对角线加上1e15，同一ID距离无限大
             dist = dist + torch.eye(self.num_pids, device=dist.device) * 1e15
             topk = self.batch_size // self.num_instance - 1
-            # 返回前topk个最大值
+            # 返回前topk个距离最小的
             _, topk_index = torch.topk(dist.cuda(), topk, largest=False)
             topk_index = topk_index.cpu().numpy()            
 
@@ -192,4 +193,6 @@ class GraphSampler(Sampler):
 
     def __iter__(self):
         self.make_index()
+        # print(1)
+        self.epoch = self.epoch + 1
         return iter(self.sam_index)

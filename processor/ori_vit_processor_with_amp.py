@@ -147,10 +147,10 @@ def ori_vit_do_train_with_amp(cfg,
                 #     loss_id_distinct += memories[i](s, label).mean()
 
                 #### triplet loss
-                target = targets.max(1)[1] ###### for mixup
+                # target = targets.max(1)[1] ###### for mixup
                 dist_mat = euclidean_dist(feat, feat)
                 #### for mixup
-                dist_ap, dist_an = hard_example_mining_for_mixup(dist_mat, target)
+                dist_ap, dist_an = hard_example_mining(dist_mat, target)
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
                 # loss_tri = torch.tensor(0.0, device=device)
