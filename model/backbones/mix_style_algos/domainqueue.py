@@ -6,7 +6,7 @@ import torch.nn as nn
 class DomainQueue(nn.Module):
 
 
-    def __init__(self, num_features, num_domains, p=1., alpha=0.1, eps=1e-6, mix='random', capacity=1024):
+    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='random', capacity=1024):
         """
         Args:
           p (float): probability of using mix.
@@ -68,13 +68,19 @@ class DomainQueue(nn.Module):
 
         #### random indexes (1 ~ num domains - 1)
         #### make sure that inds are all different from domain
-        d_inds = random.choices(range(1, self.num_domains), k=B)
-        d_inds = torch.tensor(d_inds, device=domain.device) + domain
-        d_inds = d_inds % self.num_domains
+        d_ind1 = random.choices(range(1, self.num_domains), k=B)
+        d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
+        d_ind1 = d_ind1 % self.num_domains
+        # d_ind2 = random.choices(range(1, self.num_domains), k=B)
+        # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
+        # d_ind2 = d_ind2 % self.num_domains
         # f_inds = torch.randint_like(domain, self.capacity)
-        f_inds = torch.tensor([random.randint(0, self.sum[d_inds[i]] % self.capacity) for i in range(B)])
-        mu_ = self.mean_queue[d_inds, f_inds].unsqueeze(1)
-        sig_ = self.sig_queue[d_inds, f_inds].unsqueeze(1)
+        f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
+        sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
+        # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
+        # sig2 = self.sig_queue[d_ind2, f_ind2].unsqueeze(1)
 
         # #### equal ratio of mu, sig formation (just one mu, sig)
         # dom_list = list()
@@ -96,6 +102,8 @@ class DomainQueue(nn.Module):
         # return x_normed*sig_ + mu_
     
         #### mixstyle like
-        mu_mix = mu*lmda + mu_ * (1-lmda)
-        sig_mix = sig*lmda + sig_ * (1-lmda)
+        mu_mix = mu*lmda + mu1 * (1-lmda)
+        sig_mix = sig*lmda + sig1 * (1-lmda)
+        # mu_mix = mu2*lmda + mu1 * (1-lmda)
+        # sig_mix = sig2*lmda + sig1 * (1-lmda)
         return x_normed*sig_mix + mu_mix
