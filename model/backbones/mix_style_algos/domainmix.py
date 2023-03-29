@@ -89,10 +89,10 @@ class DomainMix(nn.Module):
         hg = Normal(self.mean[domain], torch.sqrt(self.var[domain]+eps)).sample([129]).permute(1,0,2)
         #### hard positive
         hp = x_mix #### or x_new
-        x_expand = torch.cat([x.reshape(4,B/4,129,768), hp.reshape(4,B/4,129,768)],dim=0).reshape(B,129,768)
-        labels_new = torch.cat([labels.reshape(4,B/4),labels.reshape(4,B/4)], dim=0).reshape(B)
-        x_expand = torch.cat([x_expand, hg], dim=0)
-        labels_new = torch.cat([labels_new, -torch.ones([B])], dim=0)
+        x_expand = torch.cat([x.reshape(4,B//4,129,768), hp.reshape(4,B//4,129,768)],dim=0).reshape(-1,129,768)
+        labels_new = torch.cat([labels.reshape(4,B//4),labels.reshape(4,B//4)], dim=0).reshape(-1)
+        x_expand = torch.cat([x_expand, hg], dim=0).view(3*B, -1)
+        labels_new = torch.cat([labels_new, -torch.ones([B], dtype=labels.dtype, device=labels.device)], dim=0)
         dist_mat = euclidean_dist(x_expand, x_expand)
         dist_ap, dist_an = hard_example_mining(dist_mat, labels_new)
         y = dist_an.new().resize_as_(dist_an).fill_(1)
