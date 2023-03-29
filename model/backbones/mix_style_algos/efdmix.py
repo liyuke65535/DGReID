@@ -114,3 +114,9 @@ class EFDMix(nn.Module):
         x_view_copy = value_x[perm].gather(-1, inverse_index) * (1-lmda)
         new_x = x_view + (x_view_copy - x_view.detach() * (1-lmda))
         return new_x.transpose(-1,-2)
+    
+if __name__ == '__main__':
+    mix = EFDMix()
+    x = torch.rand(2, 129, 768)
+    x = mix(x)
+    print(__name__)
