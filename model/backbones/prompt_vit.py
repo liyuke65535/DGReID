@@ -293,7 +293,7 @@ class mix_vit(nn.Module):
                 # x[:, 1:] = self.domainmix[i](x[:, 1:], domain)
 
                 #### domainmix
-                x = self.domainmix[i](x, domain)
+                x = self.domainmix[i](x, labels, domain)
 
                 # #### domainqueue (skip cls token)
                 # x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
