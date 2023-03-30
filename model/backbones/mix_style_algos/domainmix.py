@@ -74,7 +74,7 @@ class DomainMix(nn.Module):
         # ############ efdmix like #############
 
         ############ mixstyle like ###########
-        x_normed = (x - x.mean(1, keepdim=True)) / torch.sqrt(x.var(1, keepdim=True) + eps)
+        x_normed = (x - x.mean(1, keepdim=True).detach()) / torch.sqrt(x.var(1, keepdim=True).detach() + eps)
 
         #### mixup type
         # x_mix = lmda * x + (1-lmda) * (x_normed + )

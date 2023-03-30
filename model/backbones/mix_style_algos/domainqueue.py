@@ -37,20 +37,20 @@ class DomainQueue(nn.Module):
         for i in range(self.num_domains):
             if not i in domain:
                 continue
-            mean = x[domain==i].mean(1)
-            sig = (x[domain==i].var(1)+self.eps).sqrt()
+            mean = x[domain==i].mean(1).detach()
+            sig = (x[domain==i].var(1)+self.eps).sqrt().detach()
             length = (domain==i).sum()
 
             sum = self.sum[i] % self.capacity
             rest = self.capacity - sum
             if length > rest:
-                self.mean_queue[i, sum:] = mean[:rest].detach()
-                self.mean_queue[i, :length-rest] = mean[rest:].detach()
-                self.sig_queue[i, sum:] = sig[:rest].detach()
-                self.sig_queue[i, :length-rest] = sig[rest:].detach()
+                self.mean_queue[i, sum:] = mean[:rest]
+                self.mean_queue[i, :length-rest] = mean[rest:]
+                self.sig_queue[i, sum:] = sig[:rest]
+                self.sig_queue[i, :length-rest] = sig[rest:]
             else:
-                self.mean_queue[i, sum:sum+length] = mean.detach()
-                self.sig_queue[i, sum:sum+length] = sig.detach()
+                self.mean_queue[i, sum:sum+length] = mean
+                self.sig_queue[i, sum:sum+length] = sig
             self.sum[i] = self.sum[i] + int(length)
 
         if not random.random() > self.p:
