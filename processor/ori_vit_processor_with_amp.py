@@ -56,6 +56,7 @@ def ori_vit_do_train_with_amp(cfg,
     loss_tri_meter = AverageMeter()
     loss_center_meter = AverageMeter()
     loss_xded_meter = AverageMeter()
+    loss_tri_hard_meter = AverageMeter()
     acc_meter = AverageMeter()
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
@@ -76,6 +77,7 @@ def ori_vit_do_train_with_amp(cfg,
         loss_tri_meter.reset()
         loss_center_meter.reset()
         loss_xded_meter.reset()
+        loss_tri_hard_meter.reset()
         acc_meter.reset()
         evaluator.reset()
         scheduler.step(epoch)
@@ -120,7 +122,7 @@ def ori_vit_do_train_with_amp(cfg,
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                score, feat, targets, score_ = model(img, target, t_domains)
+                score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score)
                 targets = 0.9 * targets + 0.1 / classes # label smooth
@@ -168,8 +170,9 @@ def ori_vit_do_train_with_amp(cfg,
                 else:
                     loss_xded = torch.tensor(0.0, device=device)
 
-                loss = loss_id + loss_tri + loss_id_distinct +\
-                    center_weight * loss_center + 1.0 * loss_xded # lam
+                loss = loss_id + loss_tri + loss_id_distinct\
+                    + center_weight * loss_center\
+                    + 1.0 * loss_xded + loss_tri_hard # lam
 
             scaler.scale(loss).backward()
 
@@ -192,14 +195,16 @@ def ori_vit_do_train_with_amp(cfg,
             loss_tri_meter.update(loss_tri.item(), bs)
             loss_center_meter.update(center_weight*loss_center.item(), bs)
             loss_xded_meter.update(loss_xded.item(), bs)
+            loss_tri_hard_meter.update(loss_tri_hard.item(), bs)
             acc_meter.update(acc, 1)
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
+                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, tri_hard:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
                 .format(epoch, n_iter+1, len(train_loader),
                 loss_meter.avg,
-                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg, loss_center_meter.avg, loss_xded_meter.avg, 
+                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg,
+                loss_tri_hard_meter, loss_center_meter.avg, loss_xded_meter.avg,
                 acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))

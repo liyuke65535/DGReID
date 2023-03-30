@@ -86,19 +86,31 @@ class DomainMix(nn.Module):
 
         ############# expand hard samples #############
         #### hard negetive
-        hg = Normal(self.mean[domain], torch.sqrt(self.var[domain]+eps)).sample([129]).permute(1,0,2)
+        hg = Normal(self.mean, torch.sqrt(self.var+eps)).sample()
         #### hard positive
-        hp = x_mix #### or x_new
-        x_expand = torch.cat([x.reshape(4,B//4,129,768), hp.reshape(4,B//4,129,768)],dim=0).reshape(-1,129,768)
-        labels_new = torch.cat([labels.reshape(4,B//4),labels.reshape(4,B//4)], dim=0).reshape(-1)
-        x_expand = torch.cat([x_expand, hg], dim=0).view(3*B, -1)
-        labels_new = torch.cat([labels_new, -torch.ones([B], dtype=labels.dtype, device=labels.device)], dim=0)
-        dist_mat = euclidean_dist(x_expand, x_expand)
-        dist_ap, dist_an = hard_example_mining(dist_mat, labels_new)
+        hp = x_mix.mean(1) #### or x_new
+        feat_expand = torch.cat([x.mean(1), hp, hg],dim=0)
+        N = feat_expand.size(0)
+        labels_new = torch.cat([labels,labels,-torch.ones([N-2*B], dtype=labels.dtype, device=labels.device)], dim=0)
+        # x_expand = torch.cat([x_expand, hg], dim=0).view(3*B, -1)
+        # labels_new = torch.cat([labels_new, -torch.ones([B], dtype=labels.dtype, device=labels.device)], dim=0)
+        dist_mat = euclidean_dist(feat_expand, feat_expand)
+        assert len(dist_mat.size()) == 2
+        assert dist_mat.size(0) == dist_mat.size(1)
+        
+        dist_mat = dist_mat[:B] #### only original images
+        is_pos = labels_new.expand(N, N).eq(labels_new.expand(N, N).t())
+        is_neg = labels_new.expand(N, N).ne(labels_new.expand(N, N).t())
+        dist_ap, relative_p_inds = torch.max(
+            dist_mat[is_pos[:B]].contiguous().view(B, -1), 1, keepdim=True)
+        dist_an, relative_n_inds = torch.min(
+            dist_mat[is_neg[:B]].contiguous().view(B, -1), 1, keepdim=True)
+        # dist_ap, dist_an = hard_example_mining(dist_mat, labels_new)
         y = dist_an.new().resize_as_(dist_an).fill_(1)
+        # nn.functional.normalize(dist_ap)
         tri_hard_loss = self.loss(dist_an - dist_ap, y)
         ############# expand hard samples #############
-        return x_mix
+        return x_mix, tri_hard_loss
     
         # #### multi mix (to do)
         # dom_num = random.randint(1, self.num_domains)
