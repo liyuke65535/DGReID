@@ -313,7 +313,7 @@ class mix_vit(nn.Module):
         x = self.norm(x)
         layer_wise_tokens = [self.norm(t) for t in layer_wise_tokens]
         rand_num = random.randint(0, 11)
-        hint_loss += F.mse_loss(
+        hint_loss = F.mse_loss(
                     F.normalize(layer_wise_tokens[rand_num][:, 0],dim=1),
                     F.normalize(layer_wise_tokens[-1][:, 0],dim=1),
                     reduction='sum'
