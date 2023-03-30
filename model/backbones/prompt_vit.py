@@ -296,7 +296,6 @@ class mix_vit(nn.Module):
                 if tri_loss != 0:
                     count += 1
                     tri_loss_avg += tri_loss
-
                 # #### domainmix
                 # x, tri_loss = self.domainmix[i](x, labels, domain)
 

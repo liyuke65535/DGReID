@@ -25,8 +25,9 @@ class DomainMix(nn.Module):
 
     def forward(self, x, labels, domain=None):
         device = x.device
+        dtype = x.dtype
         if not self.training:
-            return x, torch.tensor(0.0, device=device)
+            return x, 0
         
         moment = self.momentum
         eps = self.eps
@@ -48,7 +49,7 @@ class DomainMix(nn.Module):
         self.num_batch = self.num_batch + 1
 
         if random.random() > self.p:
-            return input, torch.tensor(0.0, device=device)
+            return x, 0
         
         B = x.size(0)
         lmda = self.beta.sample((B, 1, 1))
