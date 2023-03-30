@@ -276,6 +276,7 @@ class mix_vit(nn.Module):
         x = self.pos_drop(x)
 
         tri_loss_avg = torch.tensor(0.0, device=x.device)
+        count = 0
         for i, blk in enumerate(self.blocks):
             if i < 3: #### best 3/12
                 # #### mixup
@@ -292,7 +293,9 @@ class mix_vit(nn.Module):
 
                 #### domainmix (skip cls token)
                 x[:, 1:], tri_loss = self.domainmix[i](x[:, 1:], labels, domain)
-                tri_loss_avg += tri_loss
+                if tri_loss != 0:
+                    count += 1
+                    tri_loss_avg += tri_loss
 
                 # #### domainmix
                 # x, tri_loss = self.domainmix[i](x, labels, domain)
@@ -303,7 +306,7 @@ class mix_vit(nn.Module):
                 # #### domainqueue
                 # x = self.domainqueue[i](x, domain)
             x = blk(x)
-            tri_loss_avg = tri_loss_avg / 3
+        tri_loss_avg = tri_loss_avg / count
 
         x = self.norm(x)
 

@@ -25,7 +25,7 @@ class DomainMix(nn.Module):
 
     def forward(self, input, labels, domain=None):
         if not self.training:
-            return input
+            return input, 0.0
         
         moment = self.momentum
         eps = self.eps
@@ -48,7 +48,7 @@ class DomainMix(nn.Module):
         self.num_batch = self.num_batch + 1
 
         if random.random() > self.p:
-            return input
+            return input, 0.0
         
         B = x.size(0)
         lmda = self.beta.sample((B, 1, 1))
