@@ -305,7 +305,7 @@ class mix_vit(nn.Module):
                 # #### domainqueue
                 # x = self.domainqueue[i](x, domain)
             x = blk(x)
-        tri_loss_avg = tri_loss_avg / count
+        tri_loss_avg = tri_loss_avg / count if count != 0 else tri_loss_avg
 
         x = self.norm(x)
 
