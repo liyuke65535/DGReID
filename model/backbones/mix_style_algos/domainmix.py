@@ -90,9 +90,9 @@ class DomainMix(nn.Module):
         hg = Normal(self.mean, torch.sqrt(self.var+eps)).sample()
         #### hard positive
         hp = x_mix.mean(1) #### or x_new
-        feat_expand = torch.cat([x.mean(1), hp, hg],dim=0)
+        feat_expand = torch.cat([x.mean(1), hg],dim=0)
         N = feat_expand.size(0)
-        labels_new = torch.cat([labels,labels,-torch.ones([N-2*B], dtype=labels.dtype, device=device)], dim=0)
+        labels_new = torch.cat([labels,-torch.ones([N-B], dtype=labels.dtype, device=device)], dim=0)
         # x_expand = torch.cat([x_expand, hg], dim=0).view(3*B, -1)
         # labels_new = torch.cat([labels_new, -torch.ones([B], dtype=labels.dtype, device=device)], dim=0)
         dist_mat = euclidean_dist(feat_expand, feat_expand)

@@ -277,7 +277,7 @@ class mix_vit(nn.Module):
 
         tri_loss_avg = torch.tensor(0.0, device=x.device)
         count = 0
-        layer_wise_tokens = []
+        # layer_wise_tokens = []
         for i, blk in enumerate(self.blocks):
             if i < 3: #### best 3/12
                 # #### mixup
@@ -306,21 +306,24 @@ class mix_vit(nn.Module):
                 # #### domainqueue
                 # x = self.domainqueue[i](x, domain)
             x = blk(x)
-            layer_wise_tokens.append(x)
+            # layer_wise_tokens.append(x)
         if count != 0:
             tri_loss_avg = tri_loss_avg / count
 
         x = self.norm(x)
-        layer_wise_tokens = [self.norm(t) for t in layer_wise_tokens]
-        rand_num = random.randint(0, 11)
-        hint_loss = F.mse_loss(
-                    F.normalize(layer_wise_tokens[rand_num][:, 0],dim=1),
-                    F.normalize(layer_wise_tokens[-1][:, 0],dim=1),
-                    reduction='sum'
-                ) / B
+        return x, tri_loss_avg
+    
+        # layer_wise_tokens = [self.norm(t) for t in layer_wise_tokens]
+        # rand_num = random.randint(0, 11)
+        # hint_loss = F.mse_loss(
+        #             F.normalize(layer_wise_tokens[rand_num][:, 0],dim=1),
+        #             F.normalize(layer_wise_tokens[-1][:, 0],dim=1),
+        #             reduction='sum'
+        #         ) / B
         # return x[:, 0]
         # return x # (B, N, C)
-        return x, tri_loss_avg+hint_loss
+        # loss = tri_loss_avg + hint_loss
+        # return x, loss
 
     def forward(self, x, labels=None, domain=None):
         x, tri_loss_avg = self.forward_features(x, labels=labels, domain=domain)
