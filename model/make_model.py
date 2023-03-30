@@ -566,14 +566,14 @@ class build_mix_vit(nn.Module):
         self.classifier.apply(weights_init_classifier)
         
     def forward(self, x, labels=None, domains=None):
-        x = self.base(x, labels, domains) # B, N, C
+        x, tri_loss = self.base(x, labels, domains) # B, N, C
         global_feat = x[:, 0] # cls token for global feature
 
         feat = self.bottleneck(global_feat)
 
         if self.training:
             cls_score = self.classifier(feat)
-            return cls_score, global_feat, labels, None
+            return cls_score, global_feat, labels, None, tri_loss
         else:
             return feat if self.neck_feat == 'after' else global_feat
 

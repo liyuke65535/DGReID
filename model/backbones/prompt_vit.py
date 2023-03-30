@@ -275,6 +275,7 @@ class mix_vit(nn.Module):
 
         x = self.pos_drop(x)
 
+        tri_loss_avg = torch.tenosr(0.0, device=x.device)
         for i, blk in enumerate(self.blocks):
             if i < 3: #### best 3/12
                 # #### mixup
@@ -289,11 +290,12 @@ class mix_vit(nn.Module):
                 # #### efdmix (skip cls token)
                 # x[:, 1:] = self.efdmix(x[:, 1:])
 
-                # #### domainmix (skip cls token)
-                # x[:, 1:] = self.domainmix[i](x[:, 1:], domain)
+                #### domainmix (skip cls token)
+                x[:, 1:], tri_loss = self.domainmix[i](x[:, 1:], labels, domain)
+                tri_loss_avg += tri_loss
 
-                #### domainmix
-                x = self.domainmix[i](x, labels, domain)
+                # #### domainmix
+                # x, tri_loss = self.domainmix[i](x, labels, domain)
 
                 # #### domainqueue (skip cls token)
                 # x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
@@ -301,16 +303,17 @@ class mix_vit(nn.Module):
                 # #### domainqueue
                 # x = self.domainqueue[i](x, domain)
             x = blk(x)
+            tri_loss_avg = tri_loss_avg / 3
 
         x = self.norm(x)
 
         # return x[:, 0]
         # return x # (B, N, C)
-        return x
+        return x, tri_loss_avg
 
     def forward(self, x, labels=None, domain=None):
-        x = self.forward_features(x, labels=labels, domain=domain)
-        return x
+        x, tri_loss_avg = self.forward_features(x, labels=labels, domain=domain)
+        return x, tri_loss_avg
 
     def load_param(self, model_path):
         param_dict = torch.load(model_path, map_location='cpu')
