@@ -275,7 +275,7 @@ class mix_vit(nn.Module):
 
         x = self.pos_drop(x)
 
-        tri_loss_avg = torch.tenosr(0.0, device=x.device)
+        tri_loss_avg = torch.tensor(0.0, device=x.device)
         for i, blk in enumerate(self.blocks):
             if i < 3: #### best 3/12
                 # #### mixup
