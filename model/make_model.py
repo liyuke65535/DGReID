@@ -304,6 +304,9 @@ class build_vit(nn.Module):
         if self.training:
             #### original
             cls_score = self.classifier(feat)
+            # #### test for ACL
+            # global_feat = nn.functional.normalize(feat,2,1)
+            # global_feat = feat
             return cls_score, global_feat, target, None
 
             # #### multi-domain head
