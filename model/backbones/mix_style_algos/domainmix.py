@@ -23,14 +23,13 @@ class DomainMix(nn.Module):
 
         self.loss = nn.SoftMarginLoss()
 
-    def forward(self, input, labels, domain=None):
+    def forward(self, x, labels, domain=None):
         if not self.training:
-            return input, 0.0
+            return x, 0.0
         
         moment = self.momentum
         eps = self.eps
 
-        x = input.detach()
         #### ema update
         for i in range(self.num_domains):
             if not i in domain:

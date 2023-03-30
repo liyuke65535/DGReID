@@ -204,7 +204,7 @@ def ori_vit_do_train_with_amp(cfg,
                 .format(epoch, n_iter+1, len(train_loader),
                 loss_meter.avg,
                 loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg,
-                loss_tri_hard_meter, loss_center_meter.avg, loss_xded_meter.avg,
+                loss_tri_hard_meter.avg, loss_center_meter.avg, loss_xded_meter.avg,
                 acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
