@@ -6,6 +6,7 @@ from processor.mae_processor import mae_do_train_with_amp
 from processor.mask_vit_processor import mask_vit_do_train_with_amp
 from processor.mem_triplet_vit_processor import mem_triplet_vit_do_train_with_amp
 from processor.memory_classifier_vit_processor_with_amp import memory_classifier_vit_do_train_with_amp
+from processor.mix_vit_processor import mix_vit_do_train_with_amp
 from processor.ori_vit_processor_with_amp import ori_vit_do_train_with_amp
 from processor.prompt_vit_processor_with_amp import prompt_vit_do_train_with_amp
 from processor.rotate_vit_processor import rotate_vit_do_train_with_amp
@@ -150,6 +151,7 @@ if __name__ == '__main__':
         "rotate_vit": rotate_vit_do_train_with_amp,
         "prompt_vit": prompt_vit_do_train_with_amp,
         'XDED_vit': XDED_vit_do_train_with_amp,
+        'mix_vit': mix_vit_do_train_with_amp,
         'mem_vit': memory_classifier_vit_do_train_with_amp,
         'mem_tri_vit': mem_triplet_vit_do_train_with_amp
     }

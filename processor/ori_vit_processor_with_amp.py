@@ -124,7 +124,7 @@ def ori_vit_do_train_with_amp(cfg,
             with amp.autocast(enabled=True):
                 # score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
                 loss_tri_hard = torch.tensor(0.,device=device)
-                score, feat, target, score_, _ = model(img, target, t_domains)
+                score, feat, target, score_ = model(img, target, t_domains)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score[:bs])
                 targets = 0.9 * targets + 0.1 / classes # label smooth

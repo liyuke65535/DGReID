@@ -14,7 +14,7 @@ import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
 
-def ori_vit_do_train_with_amp(cfg,
+def mix_vit_do_train_with_amp(cfg,
              model,
              center_criterion,
              train_loader,
