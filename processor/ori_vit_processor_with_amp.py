@@ -122,7 +122,8 @@ def ori_vit_do_train_with_amp(cfg,
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
+                score, feat, target, score_ = model(img, target, t_domains)
+                loss_tri_hard = torch.tensor(0.,device=device)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score)
                 targets = 0.9 * targets + 0.1 / classes # label smooth
@@ -139,19 +140,8 @@ def ori_vit_do_train_with_amp(cfg,
                 #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
                 #     loss_id_distinct += (- label * log_probs).mean(0).sum()
 
-                # #### M3L memory loss
-                # for i in range(len(memories)):
-                #     idx = torch.nonzero(t_domains==i).squeeze()
-                #     if len(idx) == 0: continue
-                #     s = score[idx]
-                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
-                #     # label = 0.9 * label + 0.1 / num_pids[i] # label smooth
-                #     loss_id_distinct += memories[i](s, label).mean()
-
                 #### triplet loss
-                # target = targets.max(1)[1] ###### for mixup
                 dist_mat = euclidean_dist(feat, feat)
-                #### for mixup
                 dist_ap, dist_an = hard_example_mining(dist_mat, target)
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)

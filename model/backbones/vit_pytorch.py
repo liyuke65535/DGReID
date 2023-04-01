@@ -542,11 +542,11 @@ class TransReID(nn.Module):
         x = self.pos_drop(x)
 
         for i, blk in enumerate(self.blocks):
-            if i < 3:
+            # if i < 3:
                 # x[:, 1:] = self.INs[i](x[:, 1:].transpose(-1,-2)).transpose(-1,-2)
                 # x[:, 1:] = self.INs[i](x[:, 1:])
                 # x[:, 1:] = self.ins_norm(x[:, 1:]) ## bad
-                x[:, 1:] = self.lay_norm(x[:, 1:]) ## good
+                # x[:, 1:] = self.lay_norm(x[:, 1:]) ## good
                 # x[:, 1:] = self.batch_norm(x[:, 1:]) ## very bad
                 # x[:, 1:] = layernorm_1d(self.embed_dim)(x[:, 1:])
             x = blk(x)
