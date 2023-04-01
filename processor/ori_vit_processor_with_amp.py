@@ -141,15 +141,6 @@ def ori_vit_do_train_with_amp(cfg,
                 #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
                 #     loss_id_distinct += (- label * log_probs).mean(0).sum()
 
-                # #### M3L memory loss
-                # for i in range(len(memories)):
-                #     idx = torch.nonzero(t_domains==i).squeeze()
-                #     if len(idx) == 0: continue
-                #     s = score[idx]
-                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
-                #     # label = 0.9 * label + 0.1 / num_pids[i] # label smooth
-                #     loss_id_distinct += memories[i](s, label).mean()
-
                 #### triplet loss
                 # target = targets.max(1)[1] ###### for mixup
                 N = feat.shape[0]
