@@ -122,9 +122,11 @@ def ori_vit_do_train_with_amp(cfg,
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
+                # score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
+                loss_tri_hard = torch.tensor(0.,device=device)
+                score, feat, target, score_, _ = model(img, target, t_domains)
                 ### id loss
-                log_probs = nn.LogSoftmax(dim=1)(score)
+                log_probs = nn.LogSoftmax(dim=1)(score[:bs])
                 targets = 0.9 * targets + 0.1 / classes # label smooth
                 loss_id = (- targets * log_probs).mean(0).sum()
                 # loss_id = torch.tensor(0.0,device=device) ####### for test
@@ -150,9 +152,15 @@ def ori_vit_do_train_with_amp(cfg,
 
                 #### triplet loss
                 # target = targets.max(1)[1] ###### for mixup
-                dist_mat = euclidean_dist(feat, feat)
-                #### for mixup
-                dist_ap, dist_an = hard_example_mining(dist_mat, target)
+                N = feat.shape[0]
+                dist_mat = euclidean_dist(feat, feat)[:bs]
+                target_new = torch.cat([target,-torch.ones([N-bs], dtype=target.dtype, device=device)], dim=0)
+                is_pos = target_new.expand(N, N).eq(target_new.expand(N, N).t())
+                is_neg = target_new.expand(N, N).ne(target_new.expand(N, N).t())
+                dist_ap, relative_p_inds = torch.max(
+                    dist_mat[is_pos[:bs]].contiguous().view(bs, -1), 1, keepdim=True)
+                dist_an, relative_n_inds = torch.min(
+                    dist_mat[is_neg[:bs]].contiguous().view(bs, -1), 1, keepdim=True)
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
                 # loss_tri = torch.tensor(0.0, device=device)
@@ -187,7 +195,7 @@ def ori_vit_do_train_with_amp(cfg,
             if isinstance(score, list):
                 acc = (score[0].max(1)[1] == target).float().mean()
             else:
-                acc = (score.max(1)[1] == target).float().mean()
+                acc = (score[:bs].max(1)[1] == target).float().mean()
 
             loss_meter.update(loss.item(), bs)
             loss_id_meter.update(loss_id.item(), bs)

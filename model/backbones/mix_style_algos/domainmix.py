@@ -23,11 +23,13 @@ class DomainMix(nn.Module):
 
         self.loss = nn.SoftMarginLoss()
 
-    def forward(self, x, labels, domain=None):
+    def forward(self, x, labels, domain=None, append_fea=False):
         device = x.device
         dtype = x.dtype
         if not self.training:
-            return x, 0
+            if append_fea:
+                return x[:,0], torch.tensor(0.0, device=device)
+            return x, torch.tensor(0.0, device=device)
         
         moment = self.momentum
         eps = self.eps
@@ -49,7 +51,9 @@ class DomainMix(nn.Module):
         self.num_batch = self.num_batch + 1
 
         if random.random() > self.p:
-            return x, 0
+            if append_fea:
+                return x[:,0], torch.tensor(0.0, device=device)
+            return x, torch.tensor(0.0, device=device)
         
         B = x.size(0)
         lmda = self.beta.sample((B, 1, 1))
@@ -111,7 +115,10 @@ class DomainMix(nn.Module):
         # nn.functional.normalize(dist_ap)
         tri_hard_loss = self.loss(dist_an - dist_ap, y)
         ############# expand hard samples #############
-        return x_mix, tri_hard_loss
+        if not append_fea:
+            return x_mix, tri_hard_loss
+        return feat_expand, tri_hard_loss
+        # return torch.cat([x_mix.mean(1), hg]), tri_hard_loss
     
         # #### multi mix (to do)
         # dom_num = random.randint(1, self.num_domains)

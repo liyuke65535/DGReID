@@ -567,7 +567,9 @@ class build_mix_vit(nn.Module):
         
     def forward(self, x, labels=None, domains=None):
         x, tri_loss = self.base(x, labels, domains) # B, N, C
-        global_feat = x[:, 0] # cls token for global feature
+        # x = self.base(x, labels, domains) # B, N, C
+        # global_feat = x[:, 0] # cls token for global feature
+        global_feat = x
 
         feat = self.bottleneck(global_feat)
 
