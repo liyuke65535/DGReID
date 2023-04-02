@@ -122,7 +122,9 @@ def mix_vit_do_train_with_amp(cfg,
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
+                # score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
+                score, feat, target, score_ = model(img, target, t_domains)
+                loss_tri_hard = torch.tensor(0.,device=device)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score)
                 targets = 0.9 * targets + 0.1 / classes # label smooth
