@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from loss.triplet_loss import euclidean_dist, hard_example_mining
 from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
+from model.backbones.mix_style_algos.mixstyle import MixStyle_1d, MixStyle_2d
 from model.make_model import make_model
 from processor.inf_processor import do_inference
 from utils.meter import AverageMeter
@@ -104,12 +105,13 @@ def ori_vit_do_train_with_amp(cfg,
             
         
         for n_iter, informations in enumerate(train_loader):
-            img = informations['images']
-            vid = informations['targets']
-            target_cam = informations['camid']
+            img = informations['images'].to(device)
+            img = MixStyle_2d()(img) #### test
+            vid = informations['targets'].to(device)
+            target_cam = informations['camid'].to(device)
             # ipath = informations['img_path']
-            ori_label = informations['ori_label']
-            t_domains = informations['others']['domains']
+            ori_label = informations['ori_label'].to(device)
+            t_domains = informations['others']['domains'].to(device)
 
             optimizer.zero_grad()
             optimizer_center.zero_grad()

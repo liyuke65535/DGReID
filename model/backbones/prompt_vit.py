@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import collections.abc as container_abcs
 from einops import rearrange
-from model.backbones.mix_style_algos import DomainMix,EFDMix,DomainQueue,MixHistogram,MixStyle,Mixup
+from model.backbones.mix_style_algos import DomainMix,EFDMix,DomainQueue,MixHistogram,MixStyle_1d,Mixup
 
 from model.backbones.vit_pytorch import Block, PatchEmbed_overlap, trunc_normal_
 
@@ -67,7 +67,7 @@ class prompt_vit(nn.Module):
         self.pos_drop = nn.Dropout(p=drop_rate)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
 
-        self.mixstyle = MixStyle() #### mixstyle
+        self.mixstyle = MixStyle_1d() #### mixstyle
         self.efdmix = EFDMix()     #### efdmix
 
         self.domainmix = nn.ModuleList([DomainMix(embed_dim, self.num_domains) for _ in range(depth)])
