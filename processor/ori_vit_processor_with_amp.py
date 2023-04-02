@@ -3,6 +3,7 @@ import os
 import time
 import torch
 import torch.nn as nn
+from loss.domain_SCT_loss import domain_SCT_loss
 from loss.triplet_loss import euclidean_dist, hard_example_mining
 from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
 from model.backbones.mix_style_algos.mixstyle import MixStyle_1d, MixStyle_2d
@@ -55,6 +56,7 @@ def ori_vit_do_train_with_amp(cfg,
     loss_id_meter = AverageMeter()
     loss_id_distinct_meter = AverageMeter()
     loss_tri_meter = AverageMeter()
+    loss_sct_meter = AverageMeter()
     loss_center_meter = AverageMeter()
     loss_xded_meter = AverageMeter()
     loss_tri_hard_meter = AverageMeter()
@@ -76,6 +78,7 @@ def ori_vit_do_train_with_amp(cfg,
         loss_id_meter.reset()
         loss_id_distinct_meter.reset()
         loss_tri_meter.reset()
+        loss_sct_meter.reset()
         loss_center_meter.reset()
         loss_xded_meter.reset()
         loss_tri_hard_meter.reset()
@@ -106,7 +109,7 @@ def ori_vit_do_train_with_amp(cfg,
         
         for n_iter, informations in enumerate(train_loader):
             img = informations['images'].to(device)
-            img = MixStyle_2d()(img) #### test
+            # img = MixStyle_2d()(img) #### test
             vid = informations['targets'].to(device)
             target_cam = informations['camid'].to(device)
             # ipath = informations['img_path']
@@ -157,6 +160,10 @@ def ori_vit_do_train_with_amp(cfg,
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
                 # loss_tri = torch.tensor(0.0, device=device)
+
+                #### scatter loss
+                loss_sct = domain_SCT_loss(feat, t_domains)
+
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                     loss_center = center_criterion(feat, target)
@@ -173,7 +180,8 @@ def ori_vit_do_train_with_amp(cfg,
 
                 loss = loss_id + loss_tri + loss_id_distinct\
                     + center_weight * loss_center\
-                    + 1.0 * loss_xded + loss_tri_hard # lam
+                    + 1.0 * loss_xded + loss_tri_hard\
+                    + loss_sct # lam
 
             scaler.scale(loss).backward()
 
@@ -194,6 +202,7 @@ def ori_vit_do_train_with_amp(cfg,
             loss_id_meter.update(loss_id.item(), bs)
             loss_id_distinct_meter.update(loss_id_distinct.item(), bs)
             loss_tri_meter.update(loss_tri.item(), bs)
+            loss_sct_meter.update(loss_sct.item(), bs)
             loss_center_meter.update(center_weight*loss_center.item(), bs)
             loss_xded_meter.update(loss_xded.item(), bs)
             loss_tri_hard_meter.update(loss_tri_hard.item(), bs)
@@ -201,10 +210,10 @@ def ori_vit_do_train_with_amp(cfg,
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, tri_hard:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
+                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, sct:{:.3f}, tri_hard:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
                 .format(epoch, n_iter+1, len(train_loader),
                 loss_meter.avg,
-                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg,
+                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg, loss_sct_meter.avg,
                 loss_tri_hard_meter.avg, loss_center_meter.avg, loss_xded_meter.avg,
                 acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))

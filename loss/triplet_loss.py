@@ -31,6 +31,15 @@ def euclidean_dist(x, y):
     dist = dist.clamp(min=1e-12).sqrt()  # for numerical stability
     return dist
 
+def normalize(x, axis=-1):
+    """Normalizing to unit length along the specified dimension.
+    Args:
+      x: pytorch Variable
+    Returns:
+      x: pytorch Variable, same shape as input
+    """
+    x = 1. * x / (torch.norm(x, 2, axis, keepdim=True).expand_as(x) + 1e-12)
+    return x
 
 def cosine_dist(x, y):
     """
@@ -48,6 +57,13 @@ def cosine_dist(x, y):
     dist = (1. - dist) / 2
     return dist
 
+def cosine_sim(x, y):
+    bs1, bs2 = x.size(0), y.size(0)
+    frac_up = torch.matmul(x, y.transpose(0, 1))
+    frac_down = (torch.sqrt(torch.sum(torch.pow(x, 2), 1))).view(bs1, 1).repeat(1, bs2) * \
+                (torch.sqrt(torch.sum(torch.pow(y, 2), 1))).view(1, bs2).repeat(bs1, 1)
+    cosine = frac_up / frac_down
+    return cosine
 
 def hard_example_mining(dist_mat, labels, return_inds=False):
     """For each anchor, find the hardest positive and negative sample.

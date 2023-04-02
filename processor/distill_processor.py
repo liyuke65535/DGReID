@@ -26,7 +26,7 @@ def euclidean_distance(qf, gf, reduction='mean'):
         return dist_mat.mean()
     print("No such reduction!!")
 
-def cosine_similarity(qf, gf, reduction='sum'):
+def cosine_sim(qf, gf, reduction='sum'):
     epsilon = 0.00001
     dist_mat = qf.mm(gf.t())
     qf_norm = torch.norm(qf, p=2, dim=1, keepdim=True)  # mx1
@@ -187,7 +187,7 @@ def Distill_do_train(cfg,
                 hint_loss = torch.tensor(0.).to('cuda')
                 for output_rb in output_rbs:
                     if hint_loss_type == 'COS':
-                        hint_loss += cosine_similarity(
+                        hint_loss += cosine_sim(
                             output_rb['feat'],
                             output['feat'],
                             reduction='mean'

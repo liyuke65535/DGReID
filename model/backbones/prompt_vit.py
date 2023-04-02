@@ -218,13 +218,13 @@ class mix_vit(nn.Module):
         # self.efdmix = EFDMix()
         # self.mixhm = MixHistogram()
         # self.mixup = Mixup()
-        self.domainmix = nn.ModuleList([
-            DomainMix(embed_dim, num_domains) for _ in range(4)
-            ])
-        # self.domainmix = DomainMix(embed_dim, num_domains)
-        # self.domainqueue = nn.ModuleList([
-        #     DomainQueue(embed_dim, num_domains) for _ in range(3)
+        # self.domainmix = nn.ModuleList([
+        #     DomainMix(embed_dim, num_domains) for _ in range(4)
         #     ])
+        # self.domainmix = DomainMix(embed_dim, num_domains)
+        self.domainqueue = nn.ModuleList([
+            DomainQueue(embed_dim, num_domains) for _ in range(3)
+            ])
 
         self.blocks = nn.ModuleList([
             Block(
@@ -298,11 +298,11 @@ class mix_vit(nn.Module):
                 # if tri_loss != 0:
                 #     count += 1
                 #     tri_loss_avg += tri_loss
-                #### domainmix
-                x[:, 1:], tri_loss = self.domainmix[i](x[:, 1:], labels, domain)
+                # #### domainmix
+                # x[:, 1:], tri_loss = self.domainmix[i](x[:, 1:], labels, domain)
 
-                # #### domainqueue (skip cls token)
-                # x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
+                #### domainqueue (skip cls token)
+                x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
 
                 # #### domainqueue
                 # x = self.domainqueue[i](x, domain)
@@ -313,10 +313,10 @@ class mix_vit(nn.Module):
 
         x = self.norm(x)
 
-        x, tri_loss_avg = self.domainmix[-1](x, labels, domain, True)
+        # x, tri_loss_avg = self.domainmix[-1](x, labels, domain, True)
 
-        return x, tri_loss_avg
-        # return x
+        # return x, tri_loss_avg
+        return x
     
         # layer_wise_tokens = [self.norm(t) for t in layer_wise_tokens]
         # rand_num = random.randint(0, 11)
@@ -331,10 +331,10 @@ class mix_vit(nn.Module):
         # return x, loss
 
     def forward(self, x, labels=None, domain=None):
-        x, tri_loss_avg = self.forward_features(x, labels=labels, domain=domain)
-        return x, tri_loss_avg
-        # x = self.forward_features(x, labels=labels, domain=domain)
-        # return x
+        # x, tri_loss_avg = self.forward_features(x, labels=labels, domain=domain)
+        # return x, tri_loss_avg
+        x = self.forward_features(x, labels=labels, domain=domain)
+        return x
 
     def load_param(self, model_path):
         param_dict = torch.load(model_path, map_location='cpu')

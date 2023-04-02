@@ -5,8 +5,17 @@ import numpy as np
 import os
 from utils.reranking import re_ranking
 
+def normalize(x, axis=-1):
+    """Normalizing to unit length along the specified dimension.
+    Args:
+      x: pytorch Variable
+    Returns:
+      x: pytorch Variable, same shape as input
+    """
+    x = 1. * x / (torch.norm(x, 2, axis, keepdim=True).expand_as(x) + 1e-12)
+    return x
 
-def euclidean_distance(qf, gf):
+def euclidean_dist(qf, gf):
     m = qf.shape[0]
     n = gf.shape[0]
     dist_mat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
@@ -14,7 +23,15 @@ def euclidean_distance(qf, gf):
     dist_mat.addmm_(qf, gf.t(), beta=1, alpha=-2)
     return dist_mat.cpu().numpy()
 
-def cosine_similarity(qf, gf):
+def cosine_dist(x, y):
+    bs1, bs2 = x.size(0), y.size(0)
+    frac_up = torch.matmul(x, y.transpose(0, 1))
+    frac_down = (torch.sqrt(torch.sum(torch.pow(x, 2), 1))).view(bs1, 1).repeat(1, bs2) * \
+                (torch.sqrt(torch.sum(torch.pow(y, 2), 1))).view(1, bs2).repeat(bs1, 1)
+    cosine = frac_up / frac_down
+    return 1 - cosine
+
+def cosine_sim(qf, gf):
     epsilon = 0.00001
     dist_mat = qf.mm(gf.t())
     qf_norm = torch.norm(qf, p=2, dim=1, keepdim=True)  # mx1
@@ -129,7 +146,7 @@ class R1_mAP_eval():
 
         else:
             # print('=> Computing DistMat with euclidean_distance')
-            distmat = euclidean_distance(qf, gf)
+            distmat = euclidean_dist(qf, gf)
         cmc, mAP = eval_func(distmat, q_pids, g_pids, q_camids, g_camids)
 
         return cmc, mAP, distmat, self.pids, self.camids, qf, gf
