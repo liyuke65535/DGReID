@@ -47,12 +47,18 @@ def domain_shuffle_loss(dist_mat, labels, domains):
     is_pos = is_pos & ~same_ids
     is_neg = is_neg & ~same_ids
 
-    dist_ap, relative_p_inds = torch.max(
-        dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
-    dist_an, relative_n_inds = torch.min(
-        dist_mat[is_neg].contiguous().view(N, -1), 1, keepdim=True)
-    dist_ap = dist_ap.squeeze(1)
-    dist_an = dist_an.squeeze(1)
+    # dist_ap, relative_p_inds = torch.max(
+    #     dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
+    # dist_an, relative_n_inds = torch.min(
+    #     dist_mat[is_neg].contiguous().view(N, -1), 1, keepdim=True)
+    # dist_ap = dist_ap.squeeze(1)
+    # dist_an = dist_an.squeeze(1)
+
+    dist_mat1, dist_mat2 = dist_mat.clone(), dist_mat.clone()
+    dist_mat1[is_neg] = 0.
+    dist_mat2[is_pos] = 1e12
+    dist_ap,relative_p_inds = dist_mat1.max(1)
+    dist_an, relative_n_inds = dist_mat2.min(1)
 
     y = dist_an.new().resize_as_(dist_an).fill_(1)
     loss = nn.SoftMarginLoss()(dist_an - dist_ap, y)
