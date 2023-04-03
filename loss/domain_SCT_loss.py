@@ -2,6 +2,7 @@
 copy from MetaBIN
 '''
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from .triplet_loss import euclidean_dist, normalize, cosine_dist, cosine_sim
 
@@ -31,3 +32,29 @@ def domain_SCT_loss(embedding, domain_labels, norm_feat=False, type='cos_sim'):
     loss_all = torch.mean(torch.stack(loss_all))
 
     return loss_all
+
+def domain_shuffle_loss(dist_mat, labels, domains):
+    assert len(dist_mat.size()) == 2
+    assert dist_mat.size(0) == dist_mat.size(1)
+    N = dist_mat.size(0)
+
+    #### diff domain -> positive
+    #### same domain -> negetive
+    is_pos = domains.expand(N, N).ne(domains.expand(N, N).t())
+    is_neg = domains.expand(N, N).eq(domains.expand(N, N).t())
+    same_ids = labels.expand(N, N).eq(labels.expand(N, N).t())
+
+    is_pos = is_pos & ~same_ids
+    is_neg = is_neg & ~same_ids
+
+    dist_ap, relative_p_inds = torch.max(
+        dist_mat[is_pos].contiguous().view(N, -1), 1, keepdim=True)
+    dist_an, relative_n_inds = torch.min(
+        dist_mat[is_neg].contiguous().view(N, -1), 1, keepdim=True)
+    dist_ap = dist_ap.squeeze(1)
+    dist_an = dist_an.squeeze(1)
+
+    y = dist_an.new().resize_as_(dist_an).fill_(1)
+    loss = nn.SoftMarginLoss()(dist_an - dist_ap, y)
+
+    return loss

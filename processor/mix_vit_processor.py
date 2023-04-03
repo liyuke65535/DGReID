@@ -3,7 +3,7 @@ import os
 import time
 import torch
 import torch.nn as nn
-from loss.domain_SCT_loss import domain_SCT_loss
+from loss.domain_SCT_loss import domain_SCT_loss, domain_shuffle_loss
 from loss.triplet_loss import euclidean_dist, hard_example_mining
 from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
 from model.make_model import make_model
@@ -165,6 +165,9 @@ def mix_vit_do_train_with_amp(cfg,
                 # #### scatter loss
                 # loss_sct = domain_SCT_loss(feat, t_domains)
                 loss_sct = torch.tensor(0.0, device=device)
+
+                #### shuffle loss
+                loss_shuf = domain_shuffle_loss(dist_mat, target, t_domains)
 
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
