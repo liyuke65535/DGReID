@@ -82,6 +82,19 @@ class DomainQueue(nn.Module):
         # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
         # sig2 = self.sig_queue[d_ind2, f_ind2].unsqueeze(1)
 
+        #### fuse all domains
+        idxs = torch.tensor([[random.randint(0, self.sum[i] % self.capacity) for _ in range(B)]for i in range(self.num_domains)]).to(x.device)
+        ratios = torch.rand([self.num_domains,B])
+        ratios = ratios.softmax(dim=0)
+        mu1 = torch.zeros_like(domain, dtype=x.dtype)
+        sig1 = torch.zeros_like(domain, dtype=x.dtype)
+        for i in range(self.num_domains):
+            mu1 = mu1 + self.mean_queue[i].index_select(0, idxs[i]) * ratios[i]
+            sig1 = sig1 + self.sig_queue[i].index_select(0, idxs[i]) * ratios[i]
+        mu1 = mu1 / B
+        sig1 = sig1 / B
+
+
         # #### equal ratio of mu, sig formation (just one mu, sig)
         # dom_list = list()
         # for i in range(self.num_domains):
