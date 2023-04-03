@@ -162,8 +162,9 @@ def mix_vit_do_train_with_amp(cfg,
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
                 # loss_tri = torch.tensor(0.0, device=device)
 
-                #### scatter loss
-                loss_sct = domain_SCT_loss(feat, t_domains)
+                # #### scatter loss
+                # loss_sct = domain_SCT_loss(feat, t_domains)
+                loss_sct = torch.tensor(0.0, device=device)
 
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
