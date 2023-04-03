@@ -71,33 +71,33 @@ class DomainQueue(nn.Module):
         lmda = self.beta.sample((B, 1, 1))
         lmda = lmda.to(x.device)
 
-        # #### random indexes (1 ~ num domains - 1)
-        # #### make sure that inds are all different from domain
-        # d_ind1 = random.choices(range(1, self.num_domains), k=B)
-        # d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
-        # d_ind1 = d_ind1 % self.num_domains
-        # # d_ind2 = random.choices(range(1, self.num_domains), k=B)
-        # # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
-        # # d_ind2 = d_ind2 % self.num_domains
-        # # f_inds = torch.randint_like(domain, self.capacity)
-        # f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
-        # # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
-        # mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
-        # sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
-        # # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
-        # # sig2 = self.sig_queue[d_ind2, f_ind2].unsqueeze(1)
+        #### random indexes (1 ~ num domains - 1)
+        #### make sure that inds are all different from domain
+        d_ind1 = random.choices(range(1, self.num_domains), k=B)
+        d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
+        d_ind1 = d_ind1 % self.num_domains
+        # d_ind2 = random.choices(range(1, self.num_domains), k=B)
+        # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
+        # d_ind2 = d_ind2 % self.num_domains
+        # f_inds = torch.randint_like(domain, self.capacity)
+        f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
+        sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
+        # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
+        # sig2 = self.sig_queue[d_ind2, f_ind2].unsqueeze(1)
 
-        #### fuse all domains
-        idxs = torch.tensor([[random.randint(0, self.sum[i] % self.capacity) for _ in range(B)]for i in range(self.num_domains)]).to(x.device)
-        ratios = torch.rand([self.num_domains,B])
-        ratios = ratios.softmax(dim=0).to(x.device)
-        mu1 = torch.zeros([B,self.num_features], dtype=x.dtype).to(x.device)
-        sig1 = torch.zeros([B,self.num_features], dtype=x.dtype).to(x.device)
-        for i in range(self.num_domains):
-            mu1 = mu1 + self.mean_queue[i].index_select(0, idxs[i]) * ratios[i].unsqueeze(1)
-            sig1 = sig1 + self.sig_queue[i].index_select(0, idxs[i]) * ratios[i].unsqueeze(1)
-        mu1 = mu1.unsqueeze(1) / self.num_domains
-        sig1 = sig1.unsqueeze(1) / self.num_domains
+        # #### fuse all domains
+        # idxs = torch.tensor([[random.randint(0, self.sum[i] % self.capacity) for _ in range(B)]for i in range(self.num_domains)]).to(x.device)
+        # ratios = torch.rand([self.num_domains,B])
+        # ratios = ratios.softmax(dim=0).to(x.device)
+        # mu1 = torch.zeros([B,self.num_features], dtype=x.dtype).to(x.device)
+        # sig1 = torch.zeros([B,self.num_features], dtype=x.dtype).to(x.device)
+        # for i in range(self.num_domains):
+        #     mu1 = mu1 + self.mean_queue[i].index_select(0, idxs[i]) * ratios[i].unsqueeze(1)
+        #     sig1 = sig1 + self.sig_queue[i].index_select(0, idxs[i]) * ratios[i].unsqueeze(1)
+        # mu1 = mu1.unsqueeze(1) / self.num_domains
+        # sig1 = sig1.unsqueeze(1) / self.num_domains
 
 
         # #### equal ratio of mu, sig formation (just one mu, sig)
