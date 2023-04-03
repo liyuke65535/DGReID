@@ -301,11 +301,11 @@ class mix_vit(nn.Module):
                 # #### domainmix
                 # x[:, 1:], tri_loss = self.domainmix[i](x[:, 1:], labels, domain)
 
-                #### domainqueue (skip cls token)
-                x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
+                # #### domainqueue (skip cls token)
+                # x[:, 1:] = self.domainqueue[i](x[:, 1:], domain)
 
-                # #### domainqueue
-                # x = self.domainqueue[i](x, domain)
+                #### domainqueue
+                x = self.domainqueue[i](x, domain)
             x = blk(x)
             # layer_wise_tokens.append(x)
         # if count != 0:
