@@ -2,6 +2,8 @@ import random
 import torch
 import torch.nn as nn
 
+from model.backbones.vit_pytorch import trunc_normal_
+
 
 class DomainQueue(nn.Module):
 
@@ -29,6 +31,9 @@ class DomainQueue(nn.Module):
         self.register_buffer('sig_queue', torch.ones(num_domains, capacity, num_features))
         self.mean_queue.requires_grad = False
         self.sig_queue.requires_grad = False
+
+        trunc_normal_(self.mean_queue)
+        trunc_normal_(self.sig_queue)
 
     def forward(self, x, domain=None):
         if not self.training:
