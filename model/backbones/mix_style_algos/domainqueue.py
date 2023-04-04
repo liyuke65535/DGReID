@@ -92,6 +92,10 @@ class DomainQueue(nn.Module):
         repeat_times = B // mix_num
         lmda = self.beta.sample((mix_num,1,1)).repeat(repeat_times,1,1).to(x.device)
         d_ind1 = random.choices(range(1, self.num_domains), k=mix_num)
+<<<<<<< HEAD
+=======
+        d_ind1 = torch.tensor(d_ind1, device=x.device)
+>>>>>>> 3171e45efba02cebf34097512d717e0d1a675a4e
         # d_ind1 = torch.tensor(d_ind1, device=domain.device) + torch.unique(domain)
         # d_ind1 = d_ind1 % self.num_domains
         d_ind1 = d_ind1.unsqueeze(0).repeat(repeat_times,1).view(-1)

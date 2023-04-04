@@ -38,7 +38,7 @@ def domain_shuffle_loss(dist_mat, labels, domains):
     assert dist_mat.size(0) == dist_mat.size(1)
     N = dist_mat.size(0)
 
-    #### diff domain -> positive
+    #### same id & diff domain -> positive
     #### same domain (diff label) -> negetive
     is_pos = domains.expand(N, N).ne(domains.expand(N, N).t())
     is_neg = domains.expand(N, N).eq(domains.expand(N, N).t())
