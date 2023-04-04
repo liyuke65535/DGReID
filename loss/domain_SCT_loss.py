@@ -38,11 +38,14 @@ def domain_shuffle_loss(dist_mat, labels, domains):
     assert dist_mat.size(0) == dist_mat.size(1)
     N = dist_mat.size(0)
 
-    #### same id & diff domain -> positive
-    #### same domain (diff label) -> negetive
+    #### same image | diff domain -> positive
+    #### same domain & diff label -> negetive
     is_pos = domains.expand(N, N).ne(domains.expand(N, N).t())
     is_neg = domains.expand(N, N).eq(domains.expand(N, N).t())
-    same_ids = labels.expand(N, N).eq(labels.expand(N, N).t())
+    is_same_ids = labels.expand(N, N).eq(labels.expand(N, N).t())
+    is_same_image = torch.eye(N).bool().to(is_pos.device)
+    is_pos = is_pos + is_same_image
+    is_neg = is_neg * ~is_same_ids
 
     # is_pos = is_pos & ~same_ids
     # is_neg = is_neg & ~same_ids
@@ -57,7 +60,7 @@ def domain_shuffle_loss(dist_mat, labels, domains):
     dist_mat1, dist_mat2 = dist_mat.clone(), dist_mat.clone()
     dist_mat1[is_neg] = 0.
     dist_mat2[is_pos] = 1e12
-    dist_mat2[same_ids] = 1e12
+    # dist_mat2[same_ids] = 1e12
     dist_ap,relative_p_inds = dist_mat1.max(1)
     dist_an, relative_n_inds = dist_mat2.min(1)
 

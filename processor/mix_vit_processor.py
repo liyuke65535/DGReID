@@ -56,6 +56,7 @@ def mix_vit_do_train_with_amp(cfg,
     loss_id_distinct_meter = AverageMeter()
     loss_tri_meter = AverageMeter()
     loss_sct_meter = AverageMeter()
+    loss_shuf_meter = AverageMeter()
     loss_center_meter = AverageMeter()
     loss_xded_meter = AverageMeter()
     loss_tri_hard_meter = AverageMeter()
@@ -78,6 +79,7 @@ def mix_vit_do_train_with_amp(cfg,
         loss_id_distinct_meter.reset()
         loss_tri_meter.reset()
         loss_sct_meter.reset()
+        loss_shuf_meter.reset()
         loss_center_meter.reset()
         loss_xded_meter.reset()
         loss_tri_hard_meter.reset()
@@ -162,13 +164,13 @@ def mix_vit_do_train_with_amp(cfg,
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
                 # loss_tri = torch.tensor(0.0, device=device)
 
-                # #### scatter loss
-                # styles = torch.arange(16).repeat(4)
-                # loss_sct = domain_SCT_loss(feat, styles)
-                loss_sct = torch.tensor(0.0, device=device)
+                #### scatter loss
+                styles = torch.arange(16).repeat(4).to(device)
+                loss_sct = domain_SCT_loss(feat, styles)
+                # loss_sct = torch.tensor(0.0, device=device)
 
                 #### shuffle loss
-                loss_shuf = domain_shuffle_loss(dist_mat, target, t_domains)
+                loss_shuf = domain_shuffle_loss(dist_mat, target, styles)
 
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
@@ -187,7 +189,7 @@ def mix_vit_do_train_with_amp(cfg,
                 loss = loss_id + loss_tri + loss_id_distinct\
                     + center_weight * loss_center\
                     + 1.0 * loss_xded + loss_tri_hard\
-                    + loss_sct # lam
+                    + loss_sct + loss_shuf
 
             scaler.scale(loss).backward()
 
@@ -209,6 +211,7 @@ def mix_vit_do_train_with_amp(cfg,
             loss_id_distinct_meter.update(loss_id_distinct.item(), bs)
             loss_tri_meter.update(loss_tri.item(), bs)
             loss_sct_meter.update(loss_sct.item(), bs)
+            loss_shuf_meter.update(loss_shuf.item(), bs)
             loss_center_meter.update(center_weight*loss_center.item(), bs)
             loss_xded_meter.update(loss_xded.item(), bs)
             loss_tri_hard_meter.update(loss_tri_hard.item(), bs)
@@ -216,10 +219,11 @@ def mix_vit_do_train_with_amp(cfg,
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, sct:{:.3f}, tri_hard:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
+                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, sct:{:.3f}, shuf:{:.3f}, tri_hard:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
                 .format(epoch, n_iter+1, len(train_loader),
                 loss_meter.avg, 
-                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg, loss_sct_meter.avg,
+                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg,
+                loss_sct_meter.avg, loss_shuf_meter.avg,
                 loss_tri_hard_meter.avg, loss_center_meter.avg, loss_xded_meter.avg,
                 acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
