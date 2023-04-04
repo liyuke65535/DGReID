@@ -33,7 +33,7 @@ def domain_SCT_loss(embedding, domain_labels, norm_feat=False, type='cos_sim'):
 
     return loss_all
 
-def domain_shuffle_loss(dist_mat, labels, domains):
+def domain_shuffle_loss(dist_mat, labels, domains, scale=1.):
     assert len(dist_mat.size()) == 2
     assert dist_mat.size(0) == dist_mat.size(1)
     N = dist_mat.size(0)
@@ -65,6 +65,6 @@ def domain_shuffle_loss(dist_mat, labels, domains):
     dist_an, relative_n_inds = dist_mat2.min(1)
 
     y = dist_an.new().resize_as_(dist_an).fill_(1)
-    loss = nn.SoftMarginLoss()(dist_an - dist_ap, y)
+    loss = nn.SoftMarginLoss()((dist_an - dist_ap) / scale, y)
 
     return loss
