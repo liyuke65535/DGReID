@@ -69,7 +69,7 @@ def build_reid_train_loader(cfg):
 
     train_set = CommDataset(cfg, train_items, train_transforms, relabel=True, domain_names=domain_names)
 
-    train_loader = make_sampler(
+    train_loader, centers = make_sampler(
         train_set=train_set,
         num_batch=cfg.SOLVER.IMS_PER_BATCH,
         num_instance=cfg.DATALOADER.NUM_INSTANCE,
@@ -86,7 +86,7 @@ def build_reid_train_loader(cfg):
     else:
         num_domains = len(cfg.DATASETS.TRAIN)
 
-    return train_loader, num_domains, train_pids
+    return train_loader, num_domains, train_pids, centers
 
 
 def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None):
@@ -227,4 +227,4 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
         batch_sampler=batch_sampler,
         collate_fn=fast_batch_collator,
     )
-    return train_loader
+    return train_loader, centers

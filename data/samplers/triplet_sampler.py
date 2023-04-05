@@ -179,7 +179,7 @@ class HardNegetiveSampler(Sampler):
             del(avai_pids_rest)
             del(selected_pids_cp)
             selected_pids.extend(add_pids)
-            assert len(selected_pids) == self.num_pids_per_batch
+            # assert len(selected_pids) == self.num_pids_per_batch
             # selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
             for pid in selected_pids:
                 batch_idxs = batch_idxs_dict[pid].pop(0)

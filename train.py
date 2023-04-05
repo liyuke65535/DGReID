@@ -81,7 +81,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
     # build DG train loader
-    train_loader, num_domains, num_pids = build_reid_train_loader(cfg)
+    train_loader, num_domains, num_pids, center_criterion = build_reid_train_loader(cfg)
     cfg.defrost()
     cfg.DATASETS.NUM_DOMAINS = num_domains
     cfg.freeze()
@@ -98,7 +98,8 @@ if __name__ == '__main__':
         model.base.patch_embed.proj.bias.requires_grad = False
         print("====== freeze patch_embed for stability ======")
 
-    loss_func, center_criterion = build_loss(cfg, num_classes=num_classes)
+    # loss_func, center_criterion = build_loss(cfg, num_classes=num_classes)
+    loss_func, _ = build_loss(cfg, num_classes=num_classes)
     if cfg.MODEL.SOFT_LABEL and cfg.MODEL.NAME == 'local_attention_vit':
         print("========using soft label========")
 
