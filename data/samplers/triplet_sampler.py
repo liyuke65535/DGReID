@@ -168,7 +168,8 @@ class HardNegetiveSampler(Sampler):
             selected_pids.append(anchor_pid)
             remove = 0
             avai_pids_rest = copy.deepcopy(avai_pids)
-            for p in selected_pids:
+            selected_pids_cp = copy.deepcopy(selected_pids)
+            for p in selected_pids_cp:
                 if p not in avai_pids:
                     selected_pids.remove(p)
                     remove += 1
@@ -176,6 +177,7 @@ class HardNegetiveSampler(Sampler):
                     avai_pids_rest.remove(p)
             add_pids = random.sample(avai_pids_rest, remove)
             del(avai_pids_rest)
+            del(selected_pids_cp)
             selected_pids.extend(add_pids)
             assert len(selected_pids) == self.num_pids_per_batch
             # selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
