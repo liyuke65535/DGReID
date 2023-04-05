@@ -4,6 +4,9 @@ import numpy as np
 import sys
 import collections.abc as container_abcs
 
+from data.samplers.triplet_sampler import HardNegetiveSampler
+from loss.center_loss import CenterLoss
+
 # from data.transforms.build import build_transform_local
 # from torch._six import container_abcs, string_classes, int_classes
 int_classes = int
@@ -188,25 +191,35 @@ def fast_batch_collator(batched_inputs):
 def make_sampler(train_set, num_batch, num_instance, num_workers,
                  mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
-    if cfg.DATALOADER.SAMPLER == 'graph_sampler':
-        from model import make_model
-        test_transforms = build_transforms(cfg, is_train=False)
-        cfg.defrost()
-        cfg.DATASETS.NUM_DOMAINS = len(cfg.DATASETS.TRAIN)
-        cfg.freeze()
-        model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
-        data_sampler = samplers.GraphSampler(train_set.img_items,
-                                            model, mini_batch_size, num_instance,
-                                            transform=test_transforms)
-    elif not cfg.DATALOADER.RANDOM_BATCH:
-        data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
-                                                      mini_batch_size, num_instance,train_pids)
-    elif flag1:
-        data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
-                                                      mini_batch_size, num_instance)
+    num_classes = 0
+    if isinstance(train_pids, list):
+        for i in train_pids:
+            num_classes += i
     else:
-        data_sampler = samplers.DomainSuffleSampler(train_set.img_items,
-                                                     num_batch, num_instance, flag2, seed, cfg)
+        num_classes = train_pids
+    centers = CenterLoss(num_classes=num_classes, feat_dim=cfg.MODEL.DIM)
+    data_sampler = HardNegetiveSampler(cfg=cfg,centers=centers.centers,
+                                        data_source=train_set.img_items,
+                                        batch_size=mini_batch_size)
+    # if cfg.DATALOADER.SAMPLER == 'graph_sampler':
+    #     from model import make_model
+    #     test_transforms = build_transforms(cfg, is_train=False)
+    #     cfg.defrost()
+    #     cfg.DATASETS.NUM_DOMAINS = len(cfg.DATASETS.TRAIN)
+    #     cfg.freeze()
+    #     model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
+    #     data_sampler = samplers.GraphSampler(train_set.img_items,
+    #                                         model, mini_batch_size, num_instance,
+    #                                         transform=test_transforms)
+    # elif not cfg.DATALOADER.RANDOM_BATCH:
+    #     data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
+    #                                                   mini_batch_size, num_instance,train_pids)
+    # elif flag1:
+    #     data_sampler = samplers.RandomIdentitySampler(train_set.img_items,
+    #                                                   mini_batch_size, num_instance)
+    # else:
+    #     data_sampler = samplers.DomainSuffleSampler(train_set.img_items,
+    #                                                  num_batch, num_instance, flag2, seed, cfg)
     batch_sampler = torch.utils.data.sampler.BatchSampler(data_sampler, mini_batch_size, drop_last)
     train_loader = torch.utils.data.DataLoader(
         train_set,

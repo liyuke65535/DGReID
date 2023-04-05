@@ -170,7 +170,8 @@ def mix_vit_do_train_with_amp(cfg,
                 # loss_sct = torch.tensor(0.0, device=device)
 
                 #### shuffle loss
-                loss_shuf = domain_shuffle_loss(dist_mat, target, styles, scale=5.)
+                # loss_shuf = domain_shuffle_loss(dist_mat, target, styles, scale=10.)
+                loss_shuf = torch.tensor(0.0, device=device)
 
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
