@@ -25,10 +25,10 @@ class DomainQueue(nn.Module):
         self.alpha = alpha
         self.mix = mix
         
-        self.sum = list(0 for _ in range(num_domains))
+        self.sum = list(0 for _ in range(num_domains + 1))
         self.capacity = capacity
-        self.register_buffer('mean_queue', torch.zeros(num_domains, capacity, num_features))
-        self.register_buffer('sig_queue', torch.ones(num_domains, capacity, num_features))
+        self.register_buffer('mean_queue', torch.zeros(num_domains + 1, capacity, num_features))
+        self.register_buffer('sig_queue', torch.ones(num_domains + 1, capacity, num_features))
         self.mean_queue.requires_grad = False
         self.sig_queue.requires_grad = False
 
@@ -75,7 +75,7 @@ class DomainQueue(nn.Module):
         #### make sure that inds are all different from domain
         d_ind1 = random.choices(range(1, self.num_domains), k=B)
         d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
-        d_ind1 = d_ind1 % self.num_domains
+        d_ind1 = d_ind1 % (self.num_domains + 1)
         # d_ind2 = random.choices(range(1, self.num_domains), k=B)
         # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
         # d_ind2 = d_ind2 % self.num_domains
@@ -136,6 +136,20 @@ class DomainQueue(nn.Module):
         #### mixstyle like
         mu_mix = mu*lmda + mu1 * (1-lmda)
         sig_mix = sig*lmda + sig1 * (1-lmda)
+
+        #### novel style enqueue
+        sum = self.sum[-1] % self.capacity
+        rest = self.capacity - sum
+        if B > rest:
+            self.mean_queue[-1, sum:] = mu_mix[:rest]
+            self.mean_queue[-1, :length-rest] = mu_mix[rest:]
+            self.sig_queue[-1, sum:] = sig_mix[:rest]
+            self.sig_queue[-1, :length-rest] = sig_mix[rest:]
+        else:
+            self.mean_queue[-1, sum:sum+length] = mu_mix
+            self.sig_queue[-1, sum:sum+length] = sig_mix
+        self.sum[-1] = self.sum[-1] + int(length)
+
         # mu_mix = mu2*lmda + mu1 * (1-lmda)
         # sig_mix = sig2*lmda + sig1 * (1-lmda)
         return x_normed*sig_mix + mu_mix
