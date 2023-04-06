@@ -71,35 +71,35 @@ class DomainQueue(nn.Module):
         lmda = self.beta.sample((B, 1, 1))
         lmda = lmda.to(x.device)
 
-        # #### random indexes (1 ~ num domains - 1)
-        # #### make sure that inds are all different from domain
-        # d_ind1 = random.choices(range(1, self.num_domains), k=B)
-        # d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
-        # d_ind1 = d_ind1 % self.num_domains
-        # # d_ind2 = random.choices(range(1, self.num_domains), k=B)
-        # # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
-        # # d_ind2 = d_ind2 % self.num_domains
-        # # f_inds = torch.randint_like(domain, self.capacity)
-        # f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
-        # # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
-        # mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
-        # sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
-        # # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
-        # # sig2 = self.sig_queue[d_ind2, f_ind2].unsqueeze(1)
-
-        #### part into groups, each group adopts the same mix operation (single domain in batches only)
-        mix_num = 16
-        repeat_times = B // mix_num
-        lmda = self.beta.sample((mix_num,1,1)).repeat(repeat_times,1,1).to(x.device)
-        d_ind1 = random.choices(range(1, self.num_domains), k=mix_num)
-        d_ind1 = torch.tensor(d_ind1, device=domain.device)
-        # d_ind1 = torch.tensor(d_ind1, device=domain.device) + torch.unique(domain)
-        # d_ind1 = d_ind1 % self.num_domains
-        d_ind1 = d_ind1.unsqueeze(0).repeat(repeat_times,1).view(-1)
-        f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(mix_num)])
-        f_ind1 = f_ind1.unsqueeze(0).repeat(repeat_times,1).view(-1)
+        #### random indexes (1 ~ num domains - 1)
+        #### make sure that inds are all different from domain
+        d_ind1 = random.choices(range(1, self.num_domains), k=B)
+        d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
+        d_ind1 = d_ind1 % self.num_domains
+        # d_ind2 = random.choices(range(1, self.num_domains), k=B)
+        # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
+        # d_ind2 = d_ind2 % self.num_domains
+        # f_inds = torch.randint_like(domain, self.capacity)
+        f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
         mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
         sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
+        # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
+        # sig2 = self.sig_queue[d_ind2, f_ind2].unsqueeze(1)
+
+        # #### part into groups, each group adopts the same mix operation (single domain in batches only)
+        # mix_num = 16
+        # repeat_times = B // mix_num
+        # lmda = self.beta.sample((mix_num,1,1)).repeat(repeat_times,1,1).to(x.device)
+        # d_ind1 = random.choices(range(1, self.num_domains), k=mix_num)
+        # d_ind1 = torch.tensor(d_ind1, device=domain.device)
+        # # d_ind1 = torch.tensor(d_ind1, device=domain.device) + torch.unique(domain)
+        # # d_ind1 = d_ind1 % self.num_domains
+        # d_ind1 = d_ind1.unsqueeze(0).repeat(repeat_times,1).view(-1)
+        # f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(mix_num)])
+        # f_ind1 = f_ind1.unsqueeze(0).repeat(repeat_times,1).view(-1)
+        # mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
+        # sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
 
         # #### fuse all domains
         # idxs = torch.tensor([[random.randint(0, self.sum[i] % self.capacity) for _ in range(B)]for i in range(self.num_domains)]).to(x.device)
