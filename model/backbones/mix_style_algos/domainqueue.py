@@ -141,14 +141,14 @@ class DomainQueue(nn.Module):
         sum = self.sum[-1] % self.capacity
         rest = self.capacity - sum
         if B > rest:
-            self.mean_queue[-1, sum:] = mu_mix[:rest]
-            self.mean_queue[-1, :length-rest] = mu_mix[rest:]
-            self.sig_queue[-1, sum:] = sig_mix[:rest]
-            self.sig_queue[-1, :length-rest] = sig_mix[rest:]
+            self.mean_queue[-1, sum:] = mu_mix.squeeze()[:rest]
+            self.mean_queue[-1, :B-rest] = mu_mix.squeeze()[rest:]
+            self.sig_queue[-1, sum:] = sig_mix.squeeze()[:rest]
+            self.sig_queue[-1, :B-rest] = sig_mix.squeeze()[rest:]
         else:
-            self.mean_queue[-1, sum:sum+length] = mu_mix
-            self.sig_queue[-1, sum:sum+length] = sig_mix
-        self.sum[-1] = self.sum[-1] + int(length)
+            self.mean_queue[-1, sum:sum+B] = mu_mix.squeeze()
+            self.sig_queue[-1, sum:sum+B] = sig_mix.squeeze()
+        self.sum[-1] = self.sum[-1] + int(B)
 
         # mu_mix = mu2*lmda + mu1 * (1-lmda)
         # sig_mix = sig2*lmda + sig1 * (1-lmda)
