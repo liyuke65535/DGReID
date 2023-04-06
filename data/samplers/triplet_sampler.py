@@ -133,6 +133,7 @@ class HardNegetiveSampler(Sampler):
     def __iter__(self):
         logger = logging.getLogger('reid.train')
         logger.info("start batch dividing.")
+        logger.info("Hard Sampling based on centers.")
         t0 = time.time()
 
         centers = self.centers.detach()

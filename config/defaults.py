@@ -172,7 +172,7 @@ _C.DATASETS.TEST = ('DukeMTMC',)
 _C.DATASETS.ROOT_DIR = ('../data')
 # combine both train and test sets
 _C.DATASETS.COMBINEALL = False
-# _C.DATASETS.NUM_DOMAINS = 1
+_C.DATASETS.NUM_DOMAINS = 1
 _C.DATASETS.TEST_ALL = False
 
 
