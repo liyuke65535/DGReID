@@ -14,7 +14,7 @@ class DomainQueue(nn.Module):
           p (float): probability of using mix.
           alpha (float): parameter of the Beta distribution.
           eps (float): scaling parameter to avoid numerical issues.
-          mix (str): how to mix.
+          mix (str): how to mix. (random / diff_domain)
         """
         super().__init__()
         self.num_features = num_features
@@ -71,17 +71,17 @@ class DomainQueue(nn.Module):
         lmda = self.beta.sample((B, 1, 1))
         lmda = lmda.to(x.device)
 
-        #### random indexes (1 ~ num domains - 1)
-        #### make sure that inds are all different from domain
         if self.mix == 'random':
-            d_ind1 = torch.randint_like(domain)
-            # d_ind1 = random.choices(range(1, self.num_domains), k=B)
+            d_ind1 = torch.randint_like(domain, 0, self.num_domains)
+        #### make sure that inds are all different from domain
         elif self.mix == 'diff_domain':
             d_ind1 = torch.zeros_like(domain)
             for i in range(B):
-                lst = list(range(0, self.num_domains+2))
+                lst = list(range(0, self.num_domains+1))
                 lst.remove(domain[i])
                 d_ind1[i] = random.choice(lst)
+        else:
+            assert False, "not implemented mix way: {}".format(self.mix)
         f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
         # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
         mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
