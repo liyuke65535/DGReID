@@ -75,7 +75,8 @@ class DomainQueue(nn.Module):
         #### make sure that inds are all different from domain
         d_ind1 = random.choices(range(1, self.num_domains), k=B)
         d_ind1 = torch.tensor(d_ind1, device=domain.device) + domain
-        d_ind1 = d_ind1 % (self.num_domains + 1)
+        # d_ind1 = d_ind1 % self.num_domains
+        d_ind1 = d_ind1 % (self.num_domains + 1) # novel style
         # d_ind2 = random.choices(range(1, self.num_domains), k=B)
         # d_ind2 = torch.tensor(d_ind2, device=domain.device) + domain
         # d_ind2 = d_ind2 % self.num_domains
@@ -137,18 +138,18 @@ class DomainQueue(nn.Module):
         mu_mix = mu*lmda + mu1 * (1-lmda)
         sig_mix = sig*lmda + sig1 * (1-lmda)
 
-        #### novel style enqueue
-        sum = self.sum[-1] % self.capacity
-        rest = self.capacity - sum
-        if B > rest:
-            self.mean_queue[-1, sum:] = mu_mix.squeeze()[:rest]
-            self.mean_queue[-1, :B-rest] = mu_mix.squeeze()[rest:]
-            self.sig_queue[-1, sum:] = sig_mix.squeeze()[:rest]
-            self.sig_queue[-1, :B-rest] = sig_mix.squeeze()[rest:]
-        else:
-            self.mean_queue[-1, sum:sum+B] = mu_mix.squeeze()
-            self.sig_queue[-1, sum:sum+B] = sig_mix.squeeze()
-        self.sum[-1] = self.sum[-1] + int(B)
+        # #### novel style enqueue
+        # sum = self.sum[-1] % self.capacity
+        # rest = self.capacity - sum
+        # if B > rest:
+        #     self.mean_queue[-1, sum:] = mu_mix.squeeze()[:rest]
+        #     self.mean_queue[-1, :B-rest] = mu_mix.squeeze()[rest:]
+        #     self.sig_queue[-1, sum:] = sig_mix.squeeze()[:rest]
+        #     self.sig_queue[-1, :B-rest] = sig_mix.squeeze()[rest:]
+        # else:
+        #     self.mean_queue[-1, sum:sum+B] = mu_mix.squeeze()
+        #     self.sig_queue[-1, sum:sum+B] = sig_mix.squeeze()
+        # self.sum[-1] = self.sum[-1] + int(B)
 
         # mu_mix = mu2*lmda + mu1 * (1-lmda)
         # sig_mix = sig2*lmda + sig1 * (1-lmda)

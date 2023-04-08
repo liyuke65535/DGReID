@@ -105,12 +105,13 @@ class BalancedIdentitySampler(Sampler):
 
 
 class HardNegetiveSampler(Sampler):
-    def __init__(self, cfg, centers, data_source, batch_size):
+    def __init__(self, cfg, centers, train_set, batch_size):
         self.cfg = cfg
         self.centers = centers
         self.num_classes = len(centers)
 
-        self.data_source = data_source
+        self.data_source = train_set.img_items
+        self.pid_dict = train_set.pid_dict
         self.batch_size = batch_size
         self.num_instances = cfg.DATALOADER.NUM_INSTANCE
         self.num_pids_per_batch = batch_size // self.num_instances
@@ -144,7 +145,7 @@ class HardNegetiveSampler(Sampler):
         dist_mat = dist_mat + mask
         num_k = self.batch_size // self.num_instances - 1
         _, topk_index = torch.topk(dist_mat.cuda(), num_k, largest=False)
-        topk_index = topk_index.cpu().numpy() 
+        topk_index = topk_index.cpu().numpy()
 
         batch_idxs_dict = defaultdict(list)
         for pid in self.pids:

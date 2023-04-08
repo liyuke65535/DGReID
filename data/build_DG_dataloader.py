@@ -199,10 +199,10 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
     else:
         num_classes = train_pids
     centers = CenterLoss(num_classes=num_classes, feat_dim=cfg.MODEL.DIM)
-    
+
     if cfg.DATALOADER.SAMPLER == 'center_hard_sampler':
         data_sampler = HardNegetiveSampler(cfg=cfg,centers=centers.centers,
-                                            data_source=train_set.img_items,
+                                            train_set=train_set,
                                             batch_size=mini_batch_size)
     elif cfg.DATALOADER.SAMPLER == 'graph_sampler':
         from model import make_model
