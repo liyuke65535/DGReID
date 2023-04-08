@@ -8,7 +8,7 @@ from model.backbones.vit_pytorch import trunc_normal_
 class DomainQueue(nn.Module):
 
 
-    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='random', capacity=1024):
+    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=1024):
         """
         Args:
           p (float): probability of using mix.
@@ -72,12 +72,12 @@ class DomainQueue(nn.Module):
         lmda = lmda.to(x.device)
 
         if self.mix == 'random':
-            d_ind1 = torch.randint_like(domain, 0, self.num_domains)
+            d_ind1 = torch.randint_like(domain, 0, self.num_domains+1)
         #### make sure that inds are all different from domain
         elif self.mix == 'diff_domain':
             d_ind1 = torch.zeros_like(domain)
             for i in range(B):
-                lst = list(range(0, self.num_domains+1))
+                lst = list(range(0, self.num_domains))
                 lst.remove(domain[i])
                 d_ind1[i] = random.choice(lst)
         else:
