@@ -77,7 +77,8 @@ class DomainQueue(nn.Module):
         elif self.mix == 'diff_domain':
             d_ind1 = torch.zeros_like(domain)
             for i in range(B):
-                lst = list(range(0, self.num_domains))
+                lst = list(range(0, self.num_domains)) # no sync
+                # lst = list(range(0, self.num_domains+1)) # sync
                 lst.remove(domain[i])
                 d_ind1[i] = random.choice(lst)
         else:
