@@ -82,7 +82,7 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
     # build DG train loader
-    train_loader, num_domains, num_pids, center_criterion = build_reid_train_loader(cfg)
+    train_loader, num_domains, num_pids, center_criterion, model = build_reid_train_loader(cfg)
     cfg.defrost()
     cfg.DATASETS.NUM_DOMAINS = num_domains
     cfg.freeze()
@@ -91,9 +91,9 @@ if __name__ == '__main__':
     val_loader, num_query = build_reid_test_loader(cfg, val_name)
     num_classes = len(train_loader.dataset.pids)
     model_name = cfg.MODEL.NAME
-    model = make_model(cfg, modelname=model_name, num_class=num_classes, num_class_domain_wise=num_pids)
-    if cfg.SOLVER.RESUME:
-        model.load_param(cfg.SOLVER.RESUME_PATH)
+    # model = make_model(cfg, modelname=model_name, num_class=num_classes, num_class_domain_wise=num_pids)
+    # if cfg.SOLVER.RESUME:
+    #     model.load_param(cfg.SOLVER.RESUME_PATH)
     if cfg.MODEL.FREEZE_PATCH_EMBED and 'resnet' not in cfg.MODEL.NAME and 'ibn' not in cfg.MODEL.NAME: # trick from moco v3
         model.base.patch_embed.proj.weight.requires_grad = False
         model.base.patch_embed.proj.bias.requires_grad = False

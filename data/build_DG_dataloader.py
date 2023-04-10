@@ -69,7 +69,7 @@ def build_reid_train_loader(cfg):
 
     train_set = CommDataset(cfg, train_items, train_transforms, relabel=True, domain_names=domain_names)
 
-    train_loader, centers = make_sampler(
+    train_loader, centers, model = make_sampler(
         train_set=train_set,
         num_batch=cfg.SOLVER.IMS_PER_BATCH,
         num_instance=cfg.DATALOADER.NUM_INSTANCE,
@@ -86,7 +86,7 @@ def build_reid_train_loader(cfg):
     else:
         num_domains = len(cfg.DATASETS.TRAIN)
 
-    return train_loader, num_domains, train_pids, centers
+    return train_loader, num_domains, train_pids, centers, model
 
 
 def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None):
@@ -199,20 +199,24 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
     else:
         num_classes = train_pids
     center_criterion = CenterLoss(num_classes=num_classes, feat_dim=cfg.MODEL.DIM)
+    from model import make_model
+    model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=num_classes, num_class_domain_wise=train_pids)
+    test_transforms = build_transforms(cfg, is_train=False)
+    if cfg.SOLVER.RESUME:
+        model.load_param(cfg.SOLVER.RESUME_PATH)
 
     if cfg.DATALOADER.SAMPLER == 'center_hard_sampler':
         data_sampler = HardNegetiveSampler(cfg=cfg,centers=center_criterion.centers,
                                             train_set=train_set,
-                                            batch_size=mini_batch_size, num_pids=train_pids)
+                                            batch_size=mini_batch_size, num_pids=train_pids,model=model,
+                                            transform=test_transforms)
     elif cfg.DATALOADER.SAMPLER == 'graph_sampler':
-        from model import make_model
-        test_transforms = build_transforms(cfg, is_train=False)
+        
         cfg.defrost()
         cfg.DATASETS.NUM_DOMAINS = len(cfg.DATASETS.TRAIN)
         cfg.freeze()
-        model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
         data_sampler = samplers.GraphSampler(train_set.img_items,
-                                            model, mini_batch_size, num_instance,
+                                            model.base, mini_batch_size, num_instance,
                                             transform=test_transforms)
     elif cfg.DATALOADER.SAMPLER == 'single_domain':
         data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
@@ -230,4 +234,4 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
         batch_sampler=batch_sampler,
         collate_fn=fast_batch_collator,
     )
-    return train_loader, center_criterion
+    return train_loader, center_criterion, model

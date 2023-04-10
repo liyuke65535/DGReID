@@ -541,7 +541,7 @@ class build_mix_vit(nn.Module):
         super().__init__()
         self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
         self.num_classes = num_classes
-        self.neck_feat = cfg.TEST.FEAT_NORM
+        self.neck_feat = cfg.TEST.NECK_FEAT
         self.num_block = cfg.MODEL.DISTILL.NUM_SELECT_BLOCK
         self.if_head = cfg.MODEL.DISTILL.IF_HEAD
         self.num_domains = cfg.DATASETS.NUM_DOMAINS
