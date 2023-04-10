@@ -104,99 +104,6 @@ class BalancedIdentitySampler(Sampler):
             yield from indices
 
 
-class HardNegetiveSampler(Sampler):
-    def __init__(self, cfg, centers, train_set, batch_size):
-        self.cfg = cfg
-        self.centers = centers
-        self.num_classes = len(centers)
-
-        self.data_source = train_set.img_items
-        self.pid_dict = train_set.pid_dict
-        self.batch_size = batch_size
-        self.num_instances = cfg.DATALOADER.NUM_INSTANCE
-        self.num_pids_per_batch = batch_size // self.num_instances
-
-        self.index_dic = defaultdict(list)
-        for index, (_, pid, _, _) in enumerate(self.data_source):
-            self.index_dic[pid].append(index)
-        self.pids = list(self.index_dic.keys())
-        self.num_pids = len(self.pids)
-
-        # estimate number of examples in an epoch
-        self.length = 0
-        for pid in self.pids:
-            idxs = self.index_dic[pid]
-            num = len(idxs)
-            if num < self.num_instances:
-                num = self.num_instances
-            self.length += num - num % self.num_instances
-
-    def __iter__(self):
-        logger = logging.getLogger('reid.train')
-        logger.info("start batch dividing.")
-        logger.info("Hard Sampling based on centers.")
-        t0 = time.time()
-
-        centers = self.centers.detach()
-
-        dist_mat = euclidean_dist(centers, centers)
-        N = dist_mat.shape[0]
-        mask = torch.eye(N,N, device=centers.device) * 1e15
-        dist_mat = dist_mat + mask
-        num_k = self.batch_size // self.num_instances - 1
-        _, topk_index = torch.topk(dist_mat.cuda(), num_k, largest=False)
-        topk_index = topk_index.cpu().numpy()
-
-        batch_idxs_dict = defaultdict(list)
-        for pid in self.pids:
-            idxs = copy.deepcopy(self.index_dic[pid])
-            if len(idxs) < self.num_instances:
-                idxs = np.random.choice(idxs, size=self.num_instances, replace=True)
-            random.shuffle(idxs)
-            batch_idxs = []
-            for idx in idxs:
-                batch_idxs.append(idx)
-                if len(batch_idxs) == self.num_instances:
-                    batch_idxs_dict[pid].append(batch_idxs)
-                    batch_idxs = []
-
-        avai_pids = copy.deepcopy(self.pids)
-        final_idxs = []
-        while len(avai_pids) >= self.num_pids_per_batch:
-            anchor_pid = random.choice(avai_pids)
-            ind = self.pids.index(anchor_pid)
-            selected_pids = list(topk_index[ind])
-            selected_pids = [self.pids[i] for i in selected_pids]
-            selected_pids.append(anchor_pid)
-            remove = 0
-            avai_pids_rest = copy.deepcopy(avai_pids)
-            selected_pids_cp = copy.deepcopy(selected_pids)
-            for p in selected_pids_cp:
-                if p not in avai_pids:
-                    selected_pids.remove(p)
-                    remove += 1
-                else:
-                    avai_pids_rest.remove(p)
-            add_pids = random.sample(avai_pids_rest, remove)
-            del(avai_pids_rest)
-            del(selected_pids_cp)
-            selected_pids.extend(add_pids)
-            # assert len(selected_pids) == self.num_pids_per_batch
-            # selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
-            for pid in selected_pids:
-                batch_idxs = batch_idxs_dict[pid].pop(0)
-                final_idxs.extend(batch_idxs)
-                if len(batch_idxs_dict[pid]) == 0:
-                    avai_pids.remove(pid)
-
-        logger.info('batch divide time: {:.2f}s'.format(time.time()-t0))
-        return iter(final_idxs)
-
-    def __len__(self):
-        return self.length
-
-
-
 class NaiveIdentitySampler(Sampler):
     """
     Randomly sample N identities, then for each identity,
@@ -460,6 +367,104 @@ class DomainIdentitySampler(Sampler):
     
     def __len__(self):
         return self.length
+
+
+class HardNegetiveSampler(DomainIdentitySampler):
+    def __init__(self, cfg, centers, train_set, batch_size, num_pids):
+        self.cfg = cfg
+        self.centers = centers
+        self.num_classes = len(centers)
+
+        self.data_source = train_set.img_items
+        self.pid_dict = train_set.pid_dict
+        self.batch_size = batch_size
+        self.num_instances = cfg.DATALOADER.NUM_INSTANCE
+        self.num_pids_per_batch = batch_size // self.num_instances
+
+        self.index_dic = defaultdict(list)
+        for index, (_, pid, _, _) in enumerate(self.data_source):
+            self.index_dic[pid].append(index)
+        self.pids = list(self.index_dic.keys())
+        self.num_pids = num_pids
+
+        # estimate number of examples in an epoch
+        self.length = 0
+        for pid in self.pids:
+            idxs = self.index_dic[pid]
+            num = len(idxs)
+            if num < self.num_instances:
+                num = self.num_instances
+            self.length += num - num % self.num_instances
+
+        self.epoch = 0
+
+    def __iter__(self):
+        self.epoch = self.epoch + 1
+        if self.epoch <= 10:
+            return super().__iter__()
+        logger = logging.getLogger('reid.train')
+        logger.info("start batch dividing.")
+        logger.info("Hard Sampling based on centers.")
+        t0 = time.time()
+
+        centers = self.centers.detach()
+
+        dist_mat = euclidean_dist(centers, centers)
+        N = dist_mat.shape[0]
+        mask = torch.eye(N,N, device=centers.device) * 1e15
+        dist_mat = dist_mat + mask
+        num_k = self.batch_size // self.num_instances - 1
+        _, topk_index = torch.topk(dist_mat.cuda(), num_k, largest=False)
+        topk_index = topk_index.cpu().numpy()
+
+        batch_idxs_dict = defaultdict(list)
+        for pid in self.pids:
+            idxs = copy.deepcopy(self.index_dic[pid])
+            if len(idxs) < self.num_instances:
+                idxs = np.random.choice(idxs, size=self.num_instances, replace=True)
+            random.shuffle(idxs)
+            batch_idxs = []
+            for idx in idxs:
+                batch_idxs.append(idx)
+                if len(batch_idxs) == self.num_instances:
+                    batch_idxs_dict[pid].append(batch_idxs)
+                    batch_idxs = []
+
+        avai_pids = copy.deepcopy(self.pids)
+        final_idxs = []
+        while len(avai_pids) >= self.num_pids_per_batch:
+            anchor_pid = random.choice(avai_pids)
+            ind = self.pids.index(anchor_pid)
+            selected_pids = list(topk_index[ind])
+            selected_pids = [self.pids[i] for i in selected_pids]
+            selected_pids.append(anchor_pid)
+            remove = 0
+            avai_pids_rest = copy.deepcopy(avai_pids)
+            selected_pids_cp = copy.deepcopy(selected_pids)
+            for p in selected_pids_cp:
+                if p not in avai_pids:
+                    selected_pids.remove(p)
+                    remove += 1
+                else:
+                    avai_pids_rest.remove(p)
+            add_pids = random.sample(avai_pids_rest, remove)
+            del(avai_pids_rest)
+            del(selected_pids_cp)
+            selected_pids.extend(add_pids)
+            # assert len(selected_pids) == self.num_pids_per_batch
+            # selected_pids = random.sample(avai_pids, self.num_pids_per_batch)
+            for pid in selected_pids:
+                batch_idxs = batch_idxs_dict[pid].pop(0)
+                final_idxs.extend(batch_idxs)
+                if len(batch_idxs_dict[pid]) == 0:
+                    avai_pids.remove(pid)
+
+        logger.info('batch divide time: {:.2f}s'.format(time.time()-t0))
+        return iter(final_idxs)
+
+    def __len__(self):
+        return self.length
+
 
 class DomainSuffleSampler(Sampler):
 

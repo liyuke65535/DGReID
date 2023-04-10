@@ -203,7 +203,7 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
     if cfg.DATALOADER.SAMPLER == 'center_hard_sampler':
         data_sampler = HardNegetiveSampler(cfg=cfg,centers=center_criterion.centers,
                                             train_set=train_set,
-                                            batch_size=mini_batch_size)
+                                            batch_size=mini_batch_size, num_pids=train_pids)
     elif cfg.DATALOADER.SAMPLER == 'graph_sampler':
         from model import make_model
         test_transforms = build_transforms(cfg, is_train=False)
