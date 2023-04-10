@@ -198,10 +198,10 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
             num_classes += i
     else:
         num_classes = train_pids
-    centers = CenterLoss(num_classes=num_classes, feat_dim=cfg.MODEL.DIM)
+    center_criterion = CenterLoss(num_classes=num_classes, feat_dim=cfg.MODEL.DIM)
 
     if cfg.DATALOADER.SAMPLER == 'center_hard_sampler':
-        data_sampler = HardNegetiveSampler(cfg=cfg,centers=centers.centers,
+        data_sampler = HardNegetiveSampler(cfg=cfg,centers=center_criterion.centers,
                                             train_set=train_set,
                                             batch_size=mini_batch_size)
     elif cfg.DATALOADER.SAMPLER == 'graph_sampler':
@@ -230,4 +230,4 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
         batch_sampler=batch_sampler,
         collate_fn=fast_batch_collator,
     )
-    return train_loader, centers
+    return train_loader, center_criterion
