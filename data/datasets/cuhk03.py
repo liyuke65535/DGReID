@@ -1,3 +1,4 @@
+import collections
 import json
 import os.path as osp
 
@@ -69,8 +70,17 @@ class CUHK03(ImageDataset):
         train = split['train']
         query = split['query']
         gallery = split['gallery']
+        train_relabel, query_relabel, gallery_relabel = [], [], []
+        img_list = [train, query, gallery]
+        return_sets = [train_relabel, query_relabel, gallery_relabel]
+        for i in range(3):
+            for info in img_list[i]:
+                split_path = info[0].split('/')[-1].split('_')
+                pid = self.dataset_name + "_" + split_path[0] + "_" + split_path[1]
+                camid = int(split_path[2])
+                return_sets[i].append([info[0], pid, camid])
 
-        super(CUHK03, self).__init__(train, query, gallery, **kwargs)
+        super(CUHK03, self).__init__(return_sets[0], return_sets[1], return_sets[2], **kwargs)
 
     def preprocess_split(self):
         # This function is a bit complex and ugly, what it does is

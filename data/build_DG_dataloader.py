@@ -216,7 +216,7 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
         cfg.DATASETS.NUM_DOMAINS = len(cfg.DATASETS.TRAIN)
         cfg.freeze()
         data_sampler = samplers.GraphSampler(train_set.img_items,
-                                            model.base, mini_batch_size, num_instance,
+                                            model, mini_batch_size, num_instance,
                                             transform=test_transforms)
     elif cfg.DATALOADER.SAMPLER == 'single_domain':
         data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
