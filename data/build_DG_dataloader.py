@@ -69,6 +69,14 @@ def build_reid_train_loader(cfg):
 
     train_set = CommDataset(cfg, train_items, train_transforms, relabel=True, domain_names=domain_names)
 
+    if len(cfg.DATASETS.TRAIN) == 1 and cfg.DATALOADER.CAMERA_TO_DOMAIN:
+        num_domains = dataset.num_train_cams
+    else:
+        num_domains = len(cfg.DATASETS.TRAIN)
+    cfg.defrost()
+    cfg.DATASETS.NUM_DOMAINS = num_domains
+    cfg.freeze()
+
     train_loader, centers, model = make_sampler(
         train_set=train_set,
         num_batch=cfg.SOLVER.IMS_PER_BATCH,
@@ -81,10 +89,6 @@ def build_reid_train_loader(cfg):
         train_pids=train_pids,
         cfg = cfg)
 
-    if len(cfg.DATASETS.TRAIN) == 1 and cfg.DATALOADER.CAMERA_TO_DOMAIN:
-        num_domains = dataset.num_train_cams
-    else:
-        num_domains = len(cfg.DATASETS.TRAIN)
 
     return train_loader, num_domains, train_pids, centers, model
 
