@@ -411,26 +411,26 @@ class HardNegetiveSampler(DomainIdentitySampler, GraphSampler):
         t0 = time.time()
 
         
-        #### use model to calc dist
-        sam_index = []
-        for pid in self.pids:
-            # random select one image for each id
-            index = np.random.choice(self.index_dic[pid], size=1)[0]
-            sam_index.append(index)
-        dataset = [self.data_source[i] for i in sam_index]
-        dist_mat = GraphSampler.calc_distance(self, dataset)
-        N = dist_mat.shape[0]
-        mask = torch.eye(N,N, device=dist_mat.device) * 1e15
-        dist_mat = dist_mat + mask
-        #### use model to calc dist
-
-        # #### use class centers to calc dist
-        # centers = self.centers.detach()
-        # dist_mat = euclidean_dist(centers, centers)
+        # #### use model to calc dist
+        # sam_index = []
+        # for pid in self.pids:
+        #     # random select one image for each id
+        #     index = np.random.choice(self.index_dic[pid], size=1)[0]
+        #     sam_index.append(index)
+        # dataset = [self.data_source[i] for i in sam_index]
+        # dist_mat = GraphSampler.calc_distance(self, dataset)
         # N = dist_mat.shape[0]
         # mask = torch.eye(N,N, device=dist_mat.device) * 1e15
         # dist_mat = dist_mat + mask
-        # #### use class centers to calc dist
+        # #### use model to calc dist
+
+        #### use class centers to calc dist
+        centers = self.centers.detach()
+        dist_mat = euclidean_dist(centers, centers)
+        N = dist_mat.shape[0]
+        mask = torch.eye(N,N, device=dist_mat.device) * 1e15
+        dist_mat = dist_mat + mask
+        #### use class centers to calc dist
 
         num_k = self.batch_size // self.num_instances - 1
         _, topk_index = torch.topk(dist_mat.cuda(), num_k, largest=False)
