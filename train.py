@@ -104,26 +104,26 @@ if __name__ == '__main__':
     if cfg.MODEL.SOFT_LABEL and cfg.MODEL.NAME == 'local_attention_vit':
         print("========using soft label========")
 
-    #### class center init
-    source_centers_all = []
-    import torch.nn.functional as F
-    for i,testname in enumerate(cfg.DATASETS.TRAIN):
-        sour_cluster_loader, _ = build_reid_test_loader(cfg, testname, bs=256, flag_test=False)
-        source_features, labels = extract_features(model.base, sour_cluster_loader, print_freq=20)
-        sour_fea_dict = collections.defaultdict(list)
-        for k in source_features.keys():
-            sour_fea_dict[labels[k]].append(source_features[k].unsqueeze(0))
+    # #### class center init
+    # source_centers_all = []
+    # import torch.nn.functional as F
+    # for i,testname in enumerate(cfg.DATASETS.TRAIN):
+    #     sour_cluster_loader, _ = build_reid_test_loader(cfg, testname, bs=256, flag_test=False)
+    #     source_features, labels = extract_features(model.base, sour_cluster_loader, print_freq=20)
+    #     sour_fea_dict = collections.defaultdict(list)
+    #     for k in source_features.keys():
+    #         sour_fea_dict[labels[k]].append(source_features[k].unsqueeze(0))
 
-        source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
-        source_centers = torch.stack(source_centers, 0).cuda()  ## pid,dim
-        # source_centers = F.normalize(source_centers, dim=1).cuda()
-        source_centers_all.extend(source_centers)
+    #     source_centers = [torch.cat(sour_fea_dict[pid], 0).mean(0) for pid in sorted(sour_fea_dict.keys())]
+    #     source_centers = torch.stack(source_centers, 0).cuda()  ## pid,dim
+    #     # source_centers = F.normalize(source_centers, dim=1).cuda()
+    #     source_centers_all.extend(source_centers)
 
-        del source_centers, sour_cluster_loader, sour_fea_dict
-    source_centers_all = torch.stack(source_centers_all, dim=0)
-    logger.info(source_centers_all.shape)
-    center_criterion.centers = torch.nn.Parameter(source_centers_all)
-    logger.info("Class Centers initiation done.")
+    #     del source_centers, sour_cluster_loader, sour_fea_dict
+    # source_centers_all = torch.stack(source_centers_all, dim=0)
+    # logger.info(source_centers_all.shape)
+    # center_criterion.centers = torch.nn.Parameter(source_centers_all)
+    # logger.info("Class Centers initiation done.")
 
 
     optimizer, optimizer_center = make_optimizer(cfg, model, center_criterion)
