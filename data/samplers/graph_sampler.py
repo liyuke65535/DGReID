@@ -50,7 +50,8 @@ def extract_features(model, data_loader, verbose=False):
     if verbose:
         print('Extract Features...', end='\t')
 
-    is_train = model.base.patch_embed.training
+    if 'patch_embed' in dict(model.base.named_children()).keys():
+        is_train = model.base.patch_embed.training
     model = model.cuda().eval()
     with torch.no_grad():
         for i, (imgs, pids, camids, others, fnames) in enumerate(data_loader):
@@ -66,7 +67,8 @@ def extract_features(model, data_loader, verbose=False):
             fea_time += time.time() - end
             end = time.time()
     model = model.train()
-    model.base.patch_embed.train(is_train)
+    if 'patch_embed' in dict(model.base.named_children()).keys():
+        model.base.patch_embed.train(is_train)
 
     if verbose:
         print('Feature time: {:.3f} seconds. Data time: {:.3f} seconds.'.format(fea_time, data_time))
