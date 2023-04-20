@@ -6,6 +6,7 @@ from model.backbones.DHVT import dhvt_small_imagenet_patch16, dhvt_tiny_imagenet
 from model.backbones.mae import PretrainVisionTransformerDecoder, color_vit_decoder, get_sinusoid_encoding_table, mask_vit_decoder, pretrain_mae_base_patch16_224
 from model.backbones.normalizations import BatchNorm, InstanceNorm
 from model.backbones.prompt_vit import deit_small_patch16_224_prompt_vit, deit_tiny_patch16_224_prompt_vit, vit_base_patch16_224_mix_vit, vit_base_patch16_224_prompt_vit, vit_base_patch32_224_prompt_vit, vit_large_patch16_224_prompt_vit, vit_small_patch16_224_prompt_vit
+from model.backbones.resnet_mix import ResNet_mix
 from model.backbones.swin_transformer import swin_base_patch4_window7_224, swin_small_patch4_window7_224
 # from threading import local
 from model.backbones.vit_pytorch import DistillViT, TransReID, deit_tiny_patch16_224_TransReID, local_attention_deit_small, local_attention_deit_tiny, local_attention_vit_base, local_attention_vit_base_p32, local_attention_vit_large, local_attention_vit_small, mask_vit_base, vit_base_patch32_224_TransReID, vit_large_patch16_224_TransReID
@@ -74,7 +75,7 @@ def weights_init_classifier(m):
 
 
 class Backbone(nn.Module):
-    def __init__(self, model_name, num_classes, cfg):
+    def __init__(self, model_name, num_classes, cfg, num_cls_dom_wise=None):
         super(Backbone, self).__init__()
         last_stride = cfg.MODEL.LAST_STRIDE
         model_path_base = cfg.MODEL.PRETRAIN_PATH
@@ -145,12 +146,115 @@ class Backbone(nn.Module):
         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
         self.classifier.apply(weights_init_classifier)
 
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i], bias=False)\
+                    for i in range(len(num_cls_dom_wise))
+            )
+            for c in self.classifiers:
+                c.apply(weights_init_classifier)
+
         self.bottleneck = nn.BatchNorm1d(self.in_planes)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
     def forward(self, x, label=None, domains=None):  # label is unused if self.cos_layer == 'no'
         x = self.base(x) # B, C, h, w
+        
+        global_feat = nn.functional.avg_pool2d(x, x.shape[2:4])
+        global_feat = global_feat.view(global_feat.shape[0], -1)  # flatten to (bs, 2048)
+        # global_feat = self.pool(x.flatten(2)).squeeze() # is GAP harming generalization?
+
+        if self.neck == 'no':
+            feat = global_feat
+        elif self.neck == 'bnneck':
+            feat = self.bottleneck(global_feat)
+
+        if self.training:
+            # if self.cos_layer:
+            #     cls_score = self.arcface(feat, label)
+            # else:
+            #     cls_score = self.classifier(feat)
+            # return cls_score, global_feat, label, None
+
+            #### multi-domain head
+            cls_score = self.classifier(feat)
+            cls_score_ = []
+            for i in range(len(self.classifiers)):
+                if i not in domains:
+                    cls_score_.append(None)
+                    continue
+                idx = torch.nonzero(domains==i).squeeze()
+                cls_score_.append(self.classifiers[i](feat[idx]))
+            return cls_score, global_feat, label, cls_score_
+        else:
+            if self.neck_feat == 'after':
+                return feat
+            else:
+                return global_feat
+
+    def load_param(self, trained_path):
+        param_dict = torch.load(trained_path)
+        if 'state_dict' in param_dict:
+            param_dict = param_dict['state_dict']
+        for i in param_dict:
+            if 'classifier' in i: # drop classifier
+                continue
+            self.state_dict()[i].copy_(param_dict[i])
+        print('Loading pretrained model from {}'.format(trained_path))
+
+    def load_param_finetune(self, model_path):
+        param_dict = torch.load(model_path)
+        for i in param_dict:
+            self.state_dict()[i].copy_(param_dict[i])
+        print('Loading pretrained model for finetuning from {}'.format(model_path))
+
+    def compute_num_params(self):
+        total = sum([param.nelement() for param in self.parameters()])
+        logger = logging.getLogger('reid.train')
+        logger.info("Number of parameter: %.2fM" % (total/1e6))
+
+
+class build_mix_cnn(nn.Module):
+    def __init__(self, model_name, num_classes, cfg):
+        super(build_mix_cnn, self).__init__()
+        last_stride = cfg.MODEL.LAST_STRIDE
+        model_path_base = cfg.MODEL.PRETRAIN_PATH
+        
+        # model_name = cfg.MODEL.NAME
+        pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+        self.cos_layer = cfg.MODEL.COS_LAYER
+        self.neck = cfg.MODEL.NECK
+        self.neck_feat = cfg.TEST.NECK_FEAT
+        self.in_planes = 2048
+        
+        self.base = ResNet_mix(cfg,
+                            last_stride=last_stride,
+                            block=Bottleneck,
+                            layers=[3, 4, 6, 3])
+        model_path = os.path.join(model_path_base, \
+            "resnet50-0676ba61.pth")
+        print('using mix_resnet50 as a backbone')
+
+        if pretrain_choice == 'imagenet' and 'ibn' not in model_name:
+            self.base.load_param(model_path)
+            print('Loading pretrained ImageNet model......from {}'.format(model_path))
+
+        # self.pool = nn.Linear(in_features=16*8, out_features=1, bias=False)
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.num_classes = num_classes
+
+        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier.apply(weights_init_classifier)
+
+        self.bottleneck = nn.BatchNorm1d(self.in_planes)
+        self.bottleneck.bias.requires_grad_(False)
+        self.bottleneck.apply(weights_init_kaiming)
+
+    def forward(self, x, label=None, domains=None):  # label is unused if self.cos_layer == 'no'
+        x = self.base(x, domains) # B, C, h, w
         
         global_feat = nn.functional.avg_pool2d(x, x.shape[2:4])
         global_feat = global_feat.view(global_feat.shape[0], -1)  # flatten to (bs, 2048)
@@ -537,7 +641,7 @@ class build_prompt_vit(nn.Module):
         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
 class build_mix_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
+    def __init__(self, num_classes, cfg, factory, num_cls_dom_wise=None):
         super().__init__()
         self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
         self.num_classes = num_classes
@@ -564,7 +668,16 @@ class build_mix_vit(nn.Module):
         self.bottleneck.apply(weights_init_kaiming)
         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
         self.classifier.apply(weights_init_classifier)
-        
+
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i], bias=False)\
+                    for i in range(len(num_cls_dom_wise))
+            )
+            for c in self.classifiers:
+                c.apply(weights_init_classifier)
+
     def forward(self, x, labels=None, domains=None):
         # x, tri_loss = self.base(x, labels, domains) # B, N, C
         x = self.base(x, labels, domains) # B, N, C
@@ -574,9 +687,20 @@ class build_mix_vit(nn.Module):
         feat = self.bottleneck(global_feat)
 
         if self.training:
+            # cls_score = self.classifier(feat)
+            # return cls_score, global_feat, labels, None
+
+            #### multi-domain head
             cls_score = self.classifier(feat)
-            return cls_score, global_feat, labels, None
-            # return cls_score, global_feat, labels, None, tri_loss
+            cls_score_ = []
+            for i in range(len(self.classifiers)):
+                if i not in domains:
+                    cls_score_.append(None)
+                    continue
+                idx = torch.nonzero(domains==i).squeeze()
+                cls_score_.append(self.classifiers[i](feat[idx]))
+            return cls_score, global_feat, labels, cls_score_
+
         else:
             return feat if self.neck_feat == 'after' else global_feat
 
@@ -1321,7 +1445,7 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
         model = build_prompt_vit(num_class, cfg, __factory_PT_type)
         print('===========building prompt vit===========')
     elif modelname == 'mix_vit':
-        model = build_mix_vit(num_class, cfg, __factory_PT_type)
+        model = build_mix_vit(num_class, cfg, __factory_PT_type, num_class_domain_wise)
         print('===========building mix vit===========')
     elif modelname == 'XDED_vit':
         model = build_vit(num_class, cfg, __factory_T_type)
@@ -1346,8 +1470,10 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     # elif modelname == 'rotate_vit':
     #     model = build_DG_rotation_vit(num_class, cfg, __factory_T_type)
     #     print('===========building rotate vit===========')
+    elif modelname == 'mix_resnet':
+        model = build_mix_cnn(modelname, num_class, cfg)
     else:
-        model = Backbone(modelname, num_class, cfg)
+        model = Backbone(modelname, num_class, cfg, num_class_domain_wise)
         print('===========building ResNet===========')
     ### count params
     model.compute_num_params()

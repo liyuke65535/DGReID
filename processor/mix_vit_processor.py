@@ -98,14 +98,6 @@ def mix_vit_do_train_with_amp(cfg,
                         # mod.weight.requires_grad_(False)
                         # mod.bias.requires_grad_(False)
                 print("====== freeze BNs ======")
-            else:
-                for name, mod in model.base.named_modules():
-                    if 'norm' in name:
-                        mod.eval()
-                        # totally freezed LN
-                        mod.weight.requires_grad_(False)
-                        mod.bias.requires_grad_(False)
-                print("====== freeze LNs ======")
             
         
         for n_iter, informations in enumerate(train_loader):
@@ -130,21 +122,22 @@ def mix_vit_do_train_with_amp(cfg,
                 # score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
                 score, feat, target, score_ = model(img, target, t_domains)
                 loss_tri_hard = torch.tensor(0.,device=device)
-                ### id loss
-                log_probs = nn.LogSoftmax(dim=1)(score)
-                targets = 0.9 * targets + 0.1 / classes # label smooth
-                loss_id = (- targets * log_probs).mean(0).sum()
-                # loss_id = torch.tensor(0.0,device=device) ####### for test
+
+                # #### id loss
+                # log_probs = nn.LogSoftmax(dim=1)(score)
+                # targets = 0.9 * targets + 0.1 / classes # label smooth
+                # loss_id = (- targets * log_probs).mean(0).sum()
+                loss_id = torch.tensor(0.0,device=device) ####### for test
 
                 #### id loss for each domain
                 loss_id_distinct = torch.tensor(0.0, device=device)
-                # for i,s in enumerate(score_):
-                #     if s is None: continue
-                #     idx = torch.nonzero(t_domains==i).squeeze()
-                #     log_probs = nn.LogSoftmax(1)(s)
-                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
-                #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
-                #     loss_id_distinct += (- label * log_probs).mean(0).sum()
+                for i,s in enumerate(score_):
+                    if s is None: continue
+                    idx = torch.nonzero(t_domains==i).squeeze()
+                    log_probs = nn.LogSoftmax(1)(s)
+                    label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
+                    label = 0.9 * label + 0.1 / num_pids[i] # label smooth
+                    loss_id_distinct += (- label * log_probs).mean(0).sum()
 
                 # #### M3L memory loss
                 # for i in range(len(memories)):

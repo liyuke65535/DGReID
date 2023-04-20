@@ -280,7 +280,7 @@ class mix_vit(nn.Module):
         # count = 0
         # layer_wise_tokens = []
         for i, blk in enumerate(self.blocks):
-            if i < 3: #### best 3/12
+            if i < len(self.domainqueue): #### best 3/12
                 # #### mixup
                 # x, y = self.mixup(x, labels)
                 # if y is not None: labels = y
