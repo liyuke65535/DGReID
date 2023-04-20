@@ -122,11 +122,12 @@ def mix_vit_do_train_with_amp(cfg,
                 # score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
                 score, feat, target, score_ = model(img, target, t_domains)
                 loss_tri_hard = torch.tensor(0.,device=device)
-                ### id loss
-                log_probs = nn.LogSoftmax(dim=1)(score)
-                targets = 0.9 * targets + 0.1 / classes # label smooth
-                loss_id = (- targets * log_probs).mean(0).sum()
-                # loss_id = torch.tensor(0.0,device=device) ####### for test
+
+                # #### id loss
+                # log_probs = nn.LogSoftmax(dim=1)(score)
+                # targets = 0.9 * targets + 0.1 / classes # label smooth
+                # loss_id = (- targets * log_probs).mean(0).sum()
+                loss_id = torch.tensor(0.0,device=device) ####### for test
 
                 #### id loss for each domain
                 loss_id_distinct = torch.tensor(0.0, device=device)

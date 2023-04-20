@@ -74,9 +74,9 @@ def weights_init_classifier(m):
             nn.init.constant_(m.bias, 0.0)
 
 
-class build_mix_cnn(nn.Module):
-    def __init__(self, model_name, num_classes, cfg):
-        super(build_mix_cnn, self).__init__()
+class Backbone(nn.Module):
+    def __init__(self, model_name, num_classes, cfg, num_cls_dom_wise=None):
+        super(Backbone, self).__init__()
         last_stride = cfg.MODEL.LAST_STRIDE
         model_path_base = cfg.MODEL.PRETRAIN_PATH
         
@@ -146,6 +146,15 @@ class build_mix_cnn(nn.Module):
         self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
         self.classifier.apply(weights_init_classifier)
 
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i], bias=False)\
+                    for i in range(len(num_cls_dom_wise))
+            )
+            for c in self.classifiers:
+                c.apply(weights_init_classifier)
+
         self.bottleneck = nn.BatchNorm1d(self.in_planes)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
@@ -163,11 +172,22 @@ class build_mix_cnn(nn.Module):
             feat = self.bottleneck(global_feat)
 
         if self.training:
-            if self.cos_layer:
-                cls_score = self.arcface(feat, label)
-            else:
-                cls_score = self.classifier(feat)
-            return cls_score, global_feat, label, None
+            # if self.cos_layer:
+            #     cls_score = self.arcface(feat, label)
+            # else:
+            #     cls_score = self.classifier(feat)
+            # return cls_score, global_feat, label, None
+
+            #### multi-domain head
+            cls_score = self.classifier(feat)
+            cls_score_ = []
+            for i in range(len(self.classifiers)):
+                if i not in domains:
+                    cls_score_.append(None)
+                    continue
+                idx = torch.nonzero(domains==i).squeeze()
+                cls_score_.append(self.classifiers[i](feat[idx]))
+            return cls_score, global_feat, label, cls_score_
         else:
             if self.neck_feat == 'after':
                 return feat
@@ -646,15 +666,17 @@ class build_mix_vit(nn.Module):
         self.bottleneck = nn.BatchNorm1d(self.in_planes) 
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
-        # self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        # self.classifier.apply(weights_init_classifier)
+        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier.apply(weights_init_classifier)
 
         #### multi-domain head
         if num_cls_dom_wise is not None:
-            self.classifier = nn.ModuleList(
-                nn.Linear(self.in_planes, num_cls_dom_wise[i])\
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i], bias=False)\
                     for i in range(len(num_cls_dom_wise))
             )
+            for c in self.classifiers:
+                c.apply(weights_init_classifier)
 
     def forward(self, x, labels=None, domains=None):
         # x, tri_loss = self.base(x, labels, domains) # B, N, C
@@ -1451,7 +1473,7 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     elif modelname == 'mix_resnet':
         model = build_mix_cnn(modelname, num_class, cfg)
     else:
-        model = build_mix_cnn(modelname, num_class, cfg)
+        model = Backbone(modelname, num_class, cfg, num_class_domain_wise)
         print('===========building ResNet===========')
     ### count params
     model.compute_num_params()
