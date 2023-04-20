@@ -223,7 +223,7 @@ class mix_vit(nn.Module):
         #     ])
         # self.domainmix = DomainMix(embed_dim, num_domains)
         self.domainqueue = nn.ModuleList([
-            DomainQueue(embed_dim, num_domains) for _ in range(3)
+            DomainQueue(embed_dim, num_domains) for _ in range(4)
             ])
 
         self.blocks = nn.ModuleList([
@@ -280,7 +280,7 @@ class mix_vit(nn.Module):
         # count = 0
         # layer_wise_tokens = []
         for i, blk in enumerate(self.blocks):
-            if i < 3: #### best 3/12
+            if i < len(self.domainqueue): #### best 3/12
                 # #### mixup
                 # x, y = self.mixup(x, labels)
                 # if y is not None: labels = y
