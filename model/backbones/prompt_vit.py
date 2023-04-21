@@ -223,7 +223,7 @@ class mix_vit(nn.Module):
         #     ])
         # self.domainmix = DomainMix(embed_dim, num_domains)
         self.domainqueue = nn.ModuleList([
-            DomainQueue(embed_dim, num_domains) for _ in range(8)
+            DomainQueue(embed_dim, num_domains) for _ in range(4)
             ])
 
         self.blocks = nn.ModuleList([

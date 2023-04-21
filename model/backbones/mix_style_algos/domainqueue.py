@@ -131,9 +131,6 @@ class DomainQueue(nn.Module):
         #     sig_ = sig_ + self.sig_queue[d_ind, f_ind]
         # mu_, sig_ = mu_.detach() / k_dom, sig_.detach() / k_dom
         # #### equal ratio of mu, sig formation (just one mu, sig)
-
-        # # substitute (like AdaIN)
-        # return x_normed*sig_ + mu_
     
         #### mixstyle like
         mu_mix = mu*lmda + mu1 * (1-lmda)
@@ -151,6 +148,9 @@ class DomainQueue(nn.Module):
             self.mean_queue[-1, sum:sum+B] = mu_mix.squeeze()
             self.sig_queue[-1, sum:sum+B] = sig_mix.squeeze()
         self.sum[-1] = self.sum[-1] + int(B)
+
+        # substitute (like AdaIN)
+        return x_normed*sig1 + mu1
 
         # mu_mix = mu2*lmda + mu1 * (1-lmda)
         # sig_mix = sig2*lmda + sig1 * (1-lmda)
