@@ -149,8 +149,8 @@ class DomainQueue(nn.Module):
             self.sig_queue[-1, sum:sum+B] = sig_mix.squeeze()
         self.sum[-1] = self.sum[-1] + int(B)
 
-        # substitute (like AdaIN)
-        return x_normed*sig1 + mu1
+        # # substitute (like AdaIN)
+        # return x_normed*sig1 + mu1
 
         # mu_mix = mu2*lmda + mu1 * (1-lmda)
         # sig_mix = sig2*lmda + sig1 * (1-lmda)
