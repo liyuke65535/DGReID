@@ -2,7 +2,6 @@ import logging
 import os
 import random
 from einops import rearrange
-from model.backbones.DHVT import dhvt_small_imagenet_patch16, dhvt_tiny_imagenet_patch16
 from model.backbones.mae import PretrainVisionTransformerDecoder, color_vit_decoder, get_sinusoid_encoding_table, mask_vit_decoder, pretrain_mae_base_patch16_224
 from model.backbones.normalizations import BatchNorm, InstanceNorm
 from model.backbones.prompt_vit import deit_small_patch16_224_prompt_vit, deit_tiny_patch16_224_prompt_vit, vit_base_patch16_224_mix_vit, vit_base_patch16_224_prompt_vit, vit_base_patch32_224_prompt_vit, vit_large_patch16_224_prompt_vit, vit_small_patch16_224_prompt_vit
@@ -27,8 +26,6 @@ __factory_T_type = {
     'deit_tiny_patch16_224_TransReID': deit_tiny_patch16_224_TransReID,
     'swin_base_patch4_window7_224': swin_base_patch4_window7_224,
     'swin_small_patch4_window7_224': swin_small_patch4_window7_224,
-    'dhvt_tiny_patch16': dhvt_tiny_imagenet_patch16,
-    'dhvt_small_patch16': dhvt_small_imagenet_patch16
 }
 
 __factory_PT_type = {

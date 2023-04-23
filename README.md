@@ -6,3 +6,10 @@
 4. mixstyle and other domain mix methods.
 
 updating ... ...
+
+## environment settings
+```
+conda create -n dg_reid python3.9
+conda activate dg_reid
+bash environments.sh
+```
