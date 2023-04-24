@@ -7,7 +7,7 @@ from model.backbones.vit_pytorch import trunc_normal_
 
 class DomainQueue(nn.Module):
 
-    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=1024, syn_capacity=512):
+    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=64, syn_capacity=1024):
         """
         Args:
           p (float): probability of using mix.
@@ -27,8 +27,9 @@ class DomainQueue(nn.Module):
         self.sum = list(0 for _ in range(num_domains + 1))
         self.capacity = capacity
         self.syn_capacity = syn_capacity
-        self.register_buffer('mean_queue', torch.zeros(num_domains + 1, capacity, num_features))
-        self.register_buffer('sig_queue', torch.ones(num_domains + 1, capacity, num_features))
+        limitation = max(capacity, syn_capacity)
+        self.register_buffer('mean_queue', torch.zeros(num_domains + 1, limitation, num_features))
+        self.register_buffer('sig_queue', torch.ones(num_domains + 1, limitation, num_features))
         self.mean_queue.requires_grad = False
         self.sig_queue.requires_grad = False
 
@@ -49,9 +50,9 @@ class DomainQueue(nn.Module):
             sum = self.sum[i] % self.capacity
             rest = self.capacity - sum
             if length > rest:
-                self.mean_queue[i, sum:] = mean[:rest]
+                self.mean_queue[i, sum:sum+rest] = mean[:rest]
                 self.mean_queue[i, :length-rest] = mean[rest:]
-                self.sig_queue[i, sum:] = sig[:rest]
+                self.sig_queue[i, sum:sum+rest] = sig[:rest]
                 self.sig_queue[i, :length-rest] = sig[rest:]
             else:
                 self.mean_queue[i, sum:sum+length] = mean
@@ -83,8 +84,15 @@ class DomainQueue(nn.Module):
                 d_ind1[i] = random.choice(lst)
         else:
             assert False, "not implemented mix way: {}".format(self.mix)
-        f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
-        # f_ind2 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        ranges = torch.zeros_like(d_ind1)
+        for i, d in enumerate(d_ind1):
+            if d < self.num_domains:
+                ranges[i] = self.sum[d] % self.capacity
+                # print(d)
+            else:
+                ranges[i] = self.sum[d] % self.syn_capacity
+        f_ind1 = torch.tensor([random.randint(0, ranges[i]) for i in range(B)])
+        # f_ind2 = torch.tensor([random.randint(0, ranges[i]) for i in range(B)])
         mu1 = self.mean_queue[d_ind1, f_ind1].unsqueeze(1)
         sig1 = self.sig_queue[d_ind1, f_ind1].unsqueeze(1)
         # mu2 = self.mean_queue[d_ind2, f_ind2].unsqueeze(1)
@@ -138,12 +146,12 @@ class DomainQueue(nn.Module):
         sig_mix = sig*lmda + sig1 * (1-lmda)
 
         #### novel style enqueue
-        sum = self.sum[-1] % self.capacity
-        rest = self.capacity - sum
+        sum = self.sum[-1] % self.syn_capacity
+        rest = self.syn_capacity - sum
         if B > rest:
-            self.mean_queue[-1, sum:] = mu_mix.squeeze()[:rest]
+            self.mean_queue[-1, sum:sum+rest] = mu_mix.squeeze()[:rest]
             self.mean_queue[-1, :B-rest] = mu_mix.squeeze()[rest:]
-            self.sig_queue[-1, sum:] = sig_mix.squeeze()[:rest]
+            self.sig_queue[-1, sum:sum+rest] = sig_mix.squeeze()[:rest]
             self.sig_queue[-1, :B-rest] = sig_mix.squeeze()[rest:]
         else:
             self.mean_queue[-1, sum:sum+B] = mu_mix.squeeze()
@@ -227,7 +235,14 @@ class DomainQueue_2d(nn.Module):
                 d_ind1[i] = random.choice(lst)
         else:
             assert False, "not implemented mix way: {}".format(self.mix)
-        f_ind1 = torch.tensor([random.randint(0, self.sum[d_ind1[i]] % self.capacity) for i in range(B)])
+        ranges = torch.zeros_like(d_ind1)
+        for i, d in enumerate(d_ind1):
+            if d < self.num_domains:
+                ranges[i] = self.sum[d] % self.capacity
+                # print(d)
+            else:
+                ranges[i] = self.sum[d] % self.syn_capacity
+        f_ind1 = torch.tensor([random.randint(0, ranges[i]) for i in range(B)])
         mu1 = self.mean_queue[d_ind1, f_ind1][:, :, None, None]
         sig1 = self.sig_queue[d_ind1, f_ind1][:, :, None, None]
     
@@ -236,8 +251,8 @@ class DomainQueue_2d(nn.Module):
         sig_mix = sig*lmda + sig1 * (1-lmda)
 
         #### novel style enqueue
-        sum = self.sum[-1] % self.capacity
-        rest = self.capacity - sum
+        sum = self.sum[-1] % self.syn_capacity
+        rest = self.syn_capacity - sum
         if B > rest:
             self.mean_queue[-1, sum:] = mu_mix.squeeze()[:rest]
             self.mean_queue[-1, :B-rest] = mu_mix.squeeze()[rest:]
