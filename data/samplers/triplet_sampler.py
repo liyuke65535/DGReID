@@ -13,7 +13,7 @@ from data.samplers.graph_sampler import GraphSampler
 from loss.triplet_loss import euclidean_dist
 
 from utils import comm
-
+import os
 
 def no_index(a, b):
     assert isinstance(a, list)
@@ -400,6 +400,7 @@ class HardNegetiveSampler(DomainIdentitySampler, GraphSampler):
             self.length += num - num % self.num_instances
 
         self.epoch = 0
+        self.save_path = os.path.join(cfg.LOG_ROOT, cfg.LOG_NAME)
 
     def __iter__(self):
         self.epoch = self.epoch + 1
@@ -435,6 +436,23 @@ class HardNegetiveSampler(DomainIdentitySampler, GraphSampler):
         num_k = self.batch_size // self.num_instances - 1
         _, topk_index = torch.topk(dist_mat.cuda(), num_k, largest=False)
         topk_index = topk_index.cpu().numpy()
+
+        ######## save results
+        if self.save_path is not None:  
+            save_path = os.path.join(self.save_path, 'gs_results')
+            filename = os.path.join(save_path, 'shs%d.json' % self.epoch)
+            import json
+            d = self.pid_dict
+            ivd = {v: k for k, v in d.items()}
+            save_dict = {ivd[i]: list(ivd[topk_index[i, j]] for j in range(num_k)) for i in range(self.num_classes)}
+            # save_dict = {'topk':topk_index.tolist()}
+            save_json = json.dumps(save_dict)
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+            f = open(filename, 'w')
+            f.write(save_json)
+            f.close()
+            print("sample results saved!!!")
 
         batch_idxs_dict = defaultdict(list)
         for pid in self.pids:
