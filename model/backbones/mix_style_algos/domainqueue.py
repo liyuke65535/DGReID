@@ -167,7 +167,7 @@ class DomainQueue(nn.Module):
 
 
 class DomainQueue_2d(nn.Module):
-    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=1024):
+    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=1024, syn_capacity=1024):
         super().__init__()
         self.num_features = num_features
         self.num_domains = num_domains
@@ -179,8 +179,10 @@ class DomainQueue_2d(nn.Module):
         
         self.sum = list(0 for _ in range(num_domains + 1))
         self.capacity = capacity
-        self.register_buffer('mean_queue', torch.zeros(num_domains + 1, capacity, num_features))
-        self.register_buffer('sig_queue', torch.ones(num_domains + 1, capacity, num_features))
+        self.syn_capacity = syn_capacity
+        limitation = max(capacity, syn_capacity)
+        self.register_buffer('mean_queue', torch.zeros(num_domains + 1, limitation, num_features))
+        self.register_buffer('sig_queue', torch.ones(num_domains + 1, limitation, num_features))
         self.mean_queue.requires_grad = False
         self.sig_queue.requires_grad = False
 

@@ -5,6 +5,7 @@ from einops import rearrange
 from model.backbones.mae import PretrainVisionTransformerDecoder, color_vit_decoder, get_sinusoid_encoding_table, mask_vit_decoder, pretrain_mae_base_patch16_224
 from model.backbones.normalizations import BatchNorm, InstanceNorm
 from model.backbones.prompt_vit import deit_small_patch16_224_prompt_vit, deit_tiny_patch16_224_prompt_vit, vit_base_patch16_224_mix_vit, vit_base_patch16_224_prompt_vit, vit_base_patch32_224_prompt_vit, vit_large_patch16_224_prompt_vit, vit_small_patch16_224_prompt_vit
+from model.backbones.resnet_ibn_mix import Bottleneck_IBN, ResNet_IBN_mix
 from model.backbones.resnet_mix import ResNet_mix
 from model.backbones.swin_transformer import swin_base_patch4_window7_224, swin_small_patch4_window7_224
 # from threading import local
@@ -225,16 +226,38 @@ class build_mix_cnn(nn.Module):
         self.neck = cfg.MODEL.NECK
         self.neck_feat = cfg.TEST.NECK_FEAT
         self.in_planes = 2048
-        
-        self.base = ResNet_mix(cfg,
-                            last_stride=last_stride,
-                            block=Bottleneck,
-                            layers=[3, 4, 6, 3])
-        model_path = os.path.join(model_path_base, \
-            "resnet50-0676ba61.pth")
-        print('using mix_resnet50 as a backbone')
+        if 'ibnnet' in model_name:
+            if 'ibnnet50a' in model_name:
+                self.base = ResNet_IBN_mix(cfg,
+                                last_stride=last_stride,
+                                block=Bottleneck_IBN,
+                                layers=[3, 4, 6, 3],
+                                ibn_cfg=('a', 'a', 'a', None))
+                model_path = os.path.join(model_path_base, \
+                    "resnet50_ibn_a-d9d0bb7b.pth")
+                print('using mix_ibn-a-50 as a backbone')
+            elif 'ibnnet50b' in model_name:
+                self.base = ResNet_IBN_mix(cfg,
+                                last_stride=last_stride,
+                                block=Bottleneck_IBN,
+                                layers=[3, 4, 6, 3],
+                                ibn_cfg=('b', 'b', None, None))
+                model_path = os.path.join(model_path_base, \
+                    "resnet50_ibn_b-9ca61e85.pth")
+                print('using mix_ibn-b-50 as a backbone')
+            else:
+                print("error type of ibn")
+                assert False
+        else:
+            self.base = ResNet_mix(cfg,
+                                last_stride=last_stride,
+                                block=Bottleneck,
+                                layers=[3, 4, 6, 3])
+            model_path = os.path.join(model_path_base, \
+                "resnet50-0676ba61.pth")
+            print('using mix_resnet50 as a backbone')
 
-        if pretrain_choice == 'imagenet' and 'ibn' not in model_name:
+        if pretrain_choice == 'imagenet':
             self.base.load_param(model_path)
             print('Loading pretrained ImageNet model......from {}'.format(model_path))
 
@@ -1468,6 +1491,10 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     #     model = build_DG_rotation_vit(num_class, cfg, __factory_T_type)
     #     print('===========building rotate vit===========')
     elif modelname == 'mix_resnet':
+        model = build_mix_cnn(modelname, num_class, cfg)
+    elif modelname == 'mix_ibnnet50a':
+        model = build_mix_cnn(modelname, num_class, cfg)
+    elif modelname == 'mix_ibnnet50b':
         model = build_mix_cnn(modelname, num_class, cfg)
     else:
         model = Backbone(modelname, num_class, cfg, num_class_domain_wise)

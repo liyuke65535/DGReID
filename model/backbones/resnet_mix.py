@@ -109,6 +109,7 @@ class ResNet_mix(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=last_stride)
 
+        self.domainqueue0 = DomainQueue_2d(64,cfg.DATASETS.NUM_DOMAINS)
         self.domainqueue1 = DomainQueue_2d(256,cfg.DATASETS.NUM_DOMAINS)
         self.domainqueue2 = DomainQueue_2d(512,cfg.DATASETS.NUM_DOMAINS)
 
@@ -134,6 +135,7 @@ class ResNet_mix(nn.Module):
         x = self.bn1(x)
         # x = self.relu(x)    # add missed relu
         x = self.maxpool(x)
+        x = self.domainqueue0(x, domains)
         x = self.layer1(x)
         x = self.domainqueue1(x, domains)
         x = self.layer2(x)
