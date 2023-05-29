@@ -220,6 +220,24 @@ if __name__ == '__main__':
                 memories=memories,
                 sour_centers=source_centers_all
             )
+        # elif model_name == 'local_attention_vit':
+        #     local_attention_vit_do_train_with_amp(
+        #         cfg,
+        #         model,
+        #         center_criterion,
+        #         train_loader,
+        #         val_loader,
+        #         optimizer,
+        #         optimizer_center,
+        #         scheduler,
+        #         loss_func,
+        #         num_query, args.local_rank,
+        #         patch_centers = patch_centers,
+        #         pc_criterion = pc_criterion,
+        #         # num_pids = num_pids,
+        #         # memories=memories,
+        #         # sour_centers=source_centers_all
+        #     )
         else:
             ori_vit_do_train_with_amp(
                 cfg,

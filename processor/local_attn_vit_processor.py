@@ -26,7 +26,7 @@ def local_attention_vit_do_train_with_amp(cfg,
              num_query, local_rank,
              patch_centers = None,
              pc_criterion= None,
-             train_dir = None):
+             **kargs):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD

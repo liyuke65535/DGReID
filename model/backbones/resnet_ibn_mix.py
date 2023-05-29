@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from model.backbones.mix_style_algos.domainqueue import DomainQueue_2d
+from model.backbones.mix_style_algos.mixstyle import MixStyle_2d
 from .IBN import IBN
 
 model_urls = {
@@ -132,9 +133,16 @@ class ResNet_IBN_mix(nn.Module):
             elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.InstanceNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-                
-        self.domainqueue0 = DomainQueue_2d(64,cfg.DATASETS.NUM_DOMAINS)
-        self.domainqueue1 = DomainQueue_2d(256,cfg.DATASETS.NUM_DOMAINS)
+
+        #### DSM     
+        # self.mix0 = DomainQueue_2d(64,cfg.DATASETS.NUM_DOMAINS)
+        # self.mix1 = DomainQueue_2d(256,cfg.DATASETS.NUM_DOMAINS)
+
+        #### original mixstyle
+        self.mix0 = MixStyle_2d()
+        self.mix1 = MixStyle_2d()
+        self.mix2 = MixStyle_2d()
+        self.mix3 = MixStyle_2d()
 
     def _make_layer(self, block, planes, blocks, stride=1, ibn=None):
         downsample = None
@@ -162,11 +170,15 @@ class ResNet_IBN_mix(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x = self.domainqueue0(x, domains)
+        # x = self.mix0(x, domains)
+        x = self.mix0(x)
         x = self.layer1(x)
-        x = self.domainqueue1(x, domains)
+        # x = self.mix1(x, domains)
+        x = self.mix1(x)
         x = self.layer2(x)
+        x = self.mix2(x)
         x = self.layer3(x)
+        x = self.mix3(x)
         x = self.layer4(x)
 
         # x = self.avgpool(x)

@@ -215,7 +215,7 @@ class Backbone(nn.Module):
 
 
 class build_mix_cnn(nn.Module):
-    def __init__(self, model_name, num_classes, cfg):
+    def __init__(self, model_name, num_classes, cfg, num_cls_dom_wise):
         super(build_mix_cnn, self).__init__()
         last_stride = cfg.MODEL.LAST_STRIDE
         model_path_base = cfg.MODEL.PRETRAIN_PATH
@@ -273,6 +273,15 @@ class build_mix_cnn(nn.Module):
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i], bias=False)\
+                    for i in range(len(num_cls_dom_wise))
+            )
+            for c in self.classifiers:
+                c.apply(weights_init_classifier)
+
     def forward(self, x, label=None, domains=None):  # label is unused if self.cos_layer == 'no'
         x = self.base(x, domains) # B, C, h, w
         
@@ -284,13 +293,26 @@ class build_mix_cnn(nn.Module):
             feat = global_feat
         elif self.neck == 'bnneck':
             feat = self.bottleneck(global_feat)
+            # #### trick from ACL
+            # global_feat = nn.functional.normalize(feat,2,1)
 
         if self.training:
-            if self.cos_layer:
-                cls_score = self.arcface(feat, label)
-            else:
-                cls_score = self.classifier(feat)
-            return cls_score, global_feat, label, None
+            # if self.cos_layer:
+            #     cls_score = self.arcface(feat, label)
+            # else:
+            #     cls_score = self.classifier(feat)
+            # return cls_score, global_feat, label, None
+        
+            #### multi-domain head
+            cls_score = self.classifier(feat)
+            cls_score_ = []
+            for i in range(len(self.classifiers)):
+                if i not in domains:
+                    cls_score_.append(None)
+                    continue
+                idx = torch.nonzero(domains==i).squeeze()
+                cls_score_.append(self.classifiers[i](feat[idx]))
+            return cls_score, global_feat, label, cls_score_
         else:
             if self.neck_feat == 'after':
                 return feat
@@ -428,7 +450,7 @@ class build_vit(nn.Module):
         if self.training:
             #### original
             cls_score = self.classifier(feat)
-            # #### test for ACL
+            # #### trick from ACL
             # global_feat = nn.functional.normalize(feat,2,1)
             # global_feat = feat
             return cls_score, global_feat, target, None
@@ -1491,11 +1513,11 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     #     model = build_DG_rotation_vit(num_class, cfg, __factory_T_type)
     #     print('===========building rotate vit===========')
     elif modelname == 'mix_resnet':
-        model = build_mix_cnn(modelname, num_class, cfg)
+        model = build_mix_cnn(modelname, num_class, cfg, num_class_domain_wise)
     elif modelname == 'mix_ibnnet50a':
-        model = build_mix_cnn(modelname, num_class, cfg)
+        model = build_mix_cnn(modelname, num_class, cfg, num_class_domain_wise)
     elif modelname == 'mix_ibnnet50b':
-        model = build_mix_cnn(modelname, num_class, cfg)
+        model = build_mix_cnn(modelname, num_class, cfg, num_class_domain_wise)
     else:
         model = Backbone(modelname, num_class, cfg, num_class_domain_wise)
         print('===========building ResNet===========')

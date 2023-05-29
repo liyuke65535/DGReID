@@ -41,7 +41,10 @@ if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
     model = make_model(cfg, cfg.MODEL.NAME, 0)
-    model.load_param(cfg.TEST.WEIGHT)
+    if cfg.TEST.WEIGHT:
+        model.load_param(cfg.TEST.WEIGHT)
+    else:
+        print("==== random param ====")
 
     for testname in cfg.DATASETS.TEST:
         val_loader, num_query = build_reid_test_loader(cfg, testname)

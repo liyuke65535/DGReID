@@ -26,6 +26,9 @@ def do_inference(cfg,
 
     model.eval()
     img_path_list = []
+    print(1)
+    torch.cuda.synchronize()
+    print(2)
     t0 = time.time()        
 
     for n_iter, informations in enumerate(val_loader):
@@ -40,6 +43,13 @@ def do_inference(cfg,
             feat = model(img)
             evaluator.update((feat, pid, camids))
             img_path_list.extend(imgpath)
+
+    total_f_time = time.time() - t0
+    single_f_time = total_f_time / (len(val_loader) * img.shape[0])
+    num_imgs_per_sec = (len(val_loader) * img.shape[0]) / total_f_time
+    logger.info("Total feature time: {:.2f}s".format(total_f_time))
+    logger.info("single feature time: {:.5f}s".format(single_f_time))
+    logger.info("number of images per sec: {:.2f}img/s".format(num_imgs_per_sec))
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
     logger.info("Validation Results ")
