@@ -7,7 +7,7 @@ from model.backbones.vit_pytorch import trunc_normal_
 
 class DomainQueue(nn.Module):
 
-    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=1024, syn_capacity=1024):
+    def __init__(self, num_features, num_domains, p=0.5, alpha=0.1, eps=1e-6, mix='diff_domain', capacity=1024, syn_capacity=2048):
         """
         Args:
           p (float): probability of using mix.

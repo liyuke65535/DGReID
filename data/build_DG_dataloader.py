@@ -93,11 +93,14 @@ def build_reid_train_loader(cfg):
     return train_loader, num_domains, train_pids, centers, model
 
 
-def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None):
+def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None, split_id=None):
     test_transforms = build_transforms(cfg, is_train=False)
 
     if opt is None:
-        dataset = DATASET_REGISTRY.get(dataset_name)(root=_root)
+        if split_id: ### for 4 small target domains only (viper...)
+            dataset = DATASET_REGISTRY.get(dataset_name)(root=_root, split_id=split_id)
+        else:
+            dataset = DATASET_REGISTRY.get(dataset_name)(root=_root)
         if comm.is_main_process():
             if flag_test:
                 dataset.show_test()
