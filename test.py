@@ -48,18 +48,20 @@ if __name__ == "__main__":
 
     for testname in cfg.DATASETS.TEST:
         if 'DG' in testname:
-            cmc_avg, mAP_avg = 0, 0
+            cmc_avg, mAP_avg = [0 for i in range(50)], 0
             for split_id in range(10):
-                val_loader, num_query = build_reid_test_loader(cfg, testname, split_id)
+                if testname == 'DG_VIPeR':
+                    split_id = 'split_{}a'.format(split_id+1)
+                val_loader, num_query = build_reid_test_loader(cfg, testname, opt=split_id)
                 cmc, mAP = do_inference(cfg, model, val_loader, num_query)
                 cmc_avg += cmc
                 mAP_avg += mAP
-            cmc_avg /= len(cfg.DATASETS.TEST)
-            mAP_avg /= len(cfg.DATASETS.TEST)
-            logger.info("Avg Results for 10 splits of {}".format(testname))
-            logger.info("mAP: {:.1%}".format(mAP))
+            cmc_avg /= 10
+            mAP_avg /= 10
+            logger.info("===== Avg Results for 10 splits of {} =====".format(testname))
+            logger.info("mAP: {:.1%}".format(mAP_avg))
             for r in [1, 5, 10]:
-                logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+                logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_avg[r - 1]))
         else:
             val_loader, num_query = build_reid_test_loader(cfg, testname)
             do_inference(cfg, model, val_loader, num_query)

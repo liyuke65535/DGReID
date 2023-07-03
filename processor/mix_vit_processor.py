@@ -274,10 +274,24 @@ def mix_vit_do_train_with_amp(cfg,
     eval_model.load_param(load_path)
     logger.info('load weights from best.pth')
     for testname in cfg.DATASETS.TEST:
-        if 'ALL' in testname:
-            testname = 'DG_' + testname.split('_')[1]
-        val_loader, num_query = build_reid_test_loader(cfg, testname)
-        do_inference(cfg, eval_model, val_loader, num_query)
+        if 'DG' in testname:
+            cmc_avg, mAP_avg = [0 for i in range(50)], 0
+            for split_id in range(10):
+                if testname == 'DG_VIPeR':
+                    split_id = 'split_{}a'.format(split_id+1)
+                val_loader, num_query = build_reid_test_loader(cfg, testname, opt=split_id)
+                cmc, mAP = do_inference(cfg, model, val_loader, num_query)
+                cmc_avg += cmc
+                mAP_avg += mAP
+            cmc_avg /= 10
+            mAP_avg /= 10
+            logger.info("===== Avg Results for 10 splits of {} =====".format(testname))
+            logger.info("mAP: {:.1%}".format(mAP_avg))
+            for r in [1, 5, 10]:
+                logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_avg[r - 1]))
+        else:
+            val_loader, num_query = build_reid_test_loader(cfg, testname)
+            do_inference(cfg, model, val_loader, num_query)
     
     # # remove useless path files
     # del_list = os.listdir(log_path)
