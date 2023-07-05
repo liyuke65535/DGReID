@@ -7,7 +7,7 @@ from loss.domain_SCT_loss import domain_SCT_loss, domain_shuffle_loss
 from loss.triplet_loss import euclidean_dist, hard_example_mining
 from loss.triplet_loss_for_mixup import hard_example_mining_for_mixup
 from model.make_model import make_model
-from processor.inf_processor import do_inference
+from processor.inf_processor import do_inference, do_inference_multi_targets
 from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
@@ -233,28 +233,13 @@ def mix_vit_do_train_with_amp(cfg,
         log_path = os.path.join(cfg.LOG_ROOT, cfg.LOG_NAME)
 
         if epoch % eval_period == 0:
-            if cfg.MODEL.DIST_TRAIN:
-                if dist.get_rank() == 0:
-                    model.eval()
-                    for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
-                        with torch.no_grad():
-                            img = img.to(device)
-                            camids = camids.to(device)
-                            target_view = target_view.to(device)
-                            feat = model(img)
-                            evaluator.update((feat, vid, camid))
-                    cmc, mAP, _, _, _, _, _ = evaluator.compute()
-                    logger.info("Validation Results - Epoch: {}".format(epoch))
-                    logger.info("mAP: {:.1%}".format(mAP))
-                    for r in [1, 5, 10]:
-                        logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
-                    torch.cuda.empty_cache()
+            if 'DG' in cfg.DATASETS.TEST[0]:
+                cmc, mAP = do_inference_multi_targets(cfg, model, num_query, logger)
             else:
                 cmc, mAP = do_inference(cfg, model, val_loader, num_query)
-                tbWriter.add_scalar('val/Rank@1', cmc[0], epoch)
-                tbWriter.add_scalar('val/mAP', mAP, epoch)
-                torch.cuda.empty_cache()
-        if epoch % eval_period == 0:
+            tbWriter.add_scalar('val/Rank@1', cmc[0], epoch)
+            tbWriter.add_scalar('val/mAP', mAP, epoch)
+            torch.cuda.empty_cache()
             if best < mAP + cmc[0]:
                 best = mAP + cmc[0]
                 best_index = epoch
@@ -273,75 +258,9 @@ def mix_vit_do_train_with_amp(cfg,
     eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
     eval_model.load_param(load_path)
     logger.info('load weights from best.pth')
-    for testname in cfg.DATASETS.TEST:
-        if 'DG' in testname:
-            cmc_avg, mAP_avg = [0 for i in range(50)], 0
-            for split_id in range(10):
-                if testname == 'DG_VIPeR':
-                    split_id = 'split_{}a'.format(split_id+1)
-                val_loader, num_query = build_reid_test_loader(cfg, testname, opt=split_id)
-                cmc, mAP = do_inference(cfg, model, val_loader, num_query)
-                cmc_avg += cmc
-                mAP_avg += mAP
-            cmc_avg /= 10
-            mAP_avg /= 10
-            logger.info("===== Avg Results for 10 splits of {} =====".format(testname))
-            logger.info("mAP: {:.1%}".format(mAP_avg))
-            for r in [1, 5, 10]:
-                logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_avg[r - 1]))
-        else:
+    if 'DG' in cfg.DATASETS.TEST[0]:
+        do_inference_multi_targets(cfg, model, num_query, logger)
+    else:
+        for testname in cfg.DATASETS.TEST:
             val_loader, num_query = build_reid_test_loader(cfg, testname)
             do_inference(cfg, model, val_loader, num_query)
-    
-    # # remove useless path files
-    # del_list = os.listdir(log_path)
-    # for fname in del_list:
-    #     if '.pth' in fname:
-    #         os.remove(os.path.join(log_path, fname))
-    #         print('removing {}. '.format(os.path.join(log_path, fname)))
-    # # save final checkpoint
-    # print('saving final checkpoint.\nDo not interrupt the program!!!')
-    # torch.save(eval_model.state_dict(), os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
-    # print('done!')
-
-# def do_inference(cfg,
-#                  model,
-#                  val_loader,
-#                  num_query):
-#     device = "cuda"
-#     logger = logging.getLogger("reid.test")
-#     logger.info("Enter inferencing")
-
-#     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
-
-#     evaluator.reset()
-
-#     if device:
-#         if torch.cuda.device_count() > 1:
-#             print('Using {} GPUs for inference'.format(torch.cuda.device_count()))
-#             model = nn.DataParallel(model)
-#         model.to(device)
-
-#     model.eval()
-#     img_path_list = []
-#     t0 = time.time()
-#     for n_iter, informations in enumerate(val_loader):
-#         img = informations['images']
-#         pid = informations['targets']
-#         camids = informations['camid']
-#         imgpath = informations['img_path']
-#         # domains = informations['others']['domains']
-#         with torch.no_grad():
-#             img = img.to(device)
-#             # camids = camids.to(device)
-#             feat = model(img)
-#             evaluator.update((feat, pid, camids))
-#             img_path_list.extend(imgpath)
-
-#     cmc, mAP, _, _, _, _, _ = evaluator.compute()
-#     logger.info("Validation Results ")
-#     logger.info("mAP: {:.1%}".format(mAP))
-#     for r in [1, 5, 10]:
-#         logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
-#     logger.info("total inference time: {:.2f}".format(time.time() - t0))
-#     return cmc, mAP

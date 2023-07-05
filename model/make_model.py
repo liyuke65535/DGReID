@@ -434,12 +434,12 @@ class build_vit(nn.Module):
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
-        # #### multi-domain head
-        # if num_cls_dom_wise is not None:
-        #     self.classifiers = nn.ModuleList(
-        #         nn.Linear(self.in_planes, num_cls_dom_wise[i])\
-        #             for i in range(len(num_cls_dom_wise))
-        #     )
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i])\
+                    for i in range(len(num_cls_dom_wise))
+            )
 
     def forward(self, x, target=None, domain=None):
         x = self.base(x) # B, N, C
@@ -449,22 +449,22 @@ class build_vit(nn.Module):
 
         if self.training:
             #### original
-            cls_score = self.classifier(feat)
+            # cls_score = self.classifier(feat)
             # #### trick from ACL
             # global_feat = nn.functional.normalize(feat,2,1)
             # global_feat = feat
-            return cls_score, global_feat, target, None
+            # return cls_score, global_feat, target, None
 
-            # #### multi-domain head
-            # cls_score = self.classifier(feat)
-            # cls_score_ = []
-            # for i in range(len(self.classifiers)):
-            #     if i not in domain:
-            #         cls_score_.append(None)
-            #         continue
-            #     idx = torch.nonzero(domain==i).squeeze()
-            #     cls_score_.append(self.classifiers[i](feat[idx]))
-            # return cls_score, global_feat, target, cls_score_
+            #### multi-domain head
+            cls_score = self.classifier(feat)
+            cls_score_ = []
+            for i in range(len(self.classifiers)):
+                if i not in domain:
+                    cls_score_.append(None)
+                    continue
+                idx = torch.nonzero(domain==i).squeeze()
+                cls_score_.append(self.classifiers[i](feat[idx]))
+            return cls_score, global_feat, target, cls_score_
         
             # #### memoryhead (from M3L)
             # return feat, global_feat, target, None
