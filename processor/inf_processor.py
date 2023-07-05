@@ -64,7 +64,6 @@ def do_inference(cfg,
 
 def do_inference_multi_targets(cfg,
                  model,
-                 num_query,
                  logger):
 
     cmc_all, mAP_all = [0 for i in range(50)], 0
@@ -89,6 +88,6 @@ def do_inference_multi_targets(cfg,
     logger.info("===== Mean Results on 4 target datasets =====")
     logger.info("mAP: {:.1%}".format(mAP_all / len(cfg.DATASETS.TEST)))
     for r in [1, 5, 10]:
-            logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_avg[r - 1] / len(cfg.DATASETS.TEST)))
+            logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_all[r - 1] / len(cfg.DATASETS.TEST)))
 
     return cmc_all, mAP_all

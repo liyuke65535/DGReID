@@ -131,20 +131,20 @@ def ori_vit_do_train_with_amp(cfg,
                 loss_tri_hard = torch.tensor(0.,device=device)
                 score, feat, target, score_ = model(img, target, t_domains)
                 ### id loss
-                # log_probs = nn.LogSoftmax(dim=1)(score[:bs])
-                # targets = 0.9 * targets + 0.1 / classes # label smooth
-                # loss_id = (- targets * log_probs).mean(0).sum()
-                loss_id = torch.tensor(0.0,device=device) ####### for test
+                log_probs = nn.LogSoftmax(dim=1)(score[:bs])
+                targets = 0.9 * targets + 0.1 / classes # label smooth
+                loss_id = (- targets * log_probs).mean(0).sum()
+                # loss_id = torch.tensor(0.0,device=device) ####### for test
 
                 #### id loss for each domain
                 loss_id_distinct = torch.tensor(0.0, device=device)
-                for i,s in enumerate(score_):
-                    if s is None: continue
-                    idx = torch.nonzero(t_domains==i).squeeze()
-                    log_probs = nn.LogSoftmax(1)(s)
-                    label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
-                    label = 0.9 * label + 0.1 / num_pids[i] # label smooth
-                    loss_id_distinct += (- label * log_probs).mean(0).sum()
+                # for i,s in enumerate(score_):
+                #     if s is None: continue
+                #     idx = torch.nonzero(t_domains==i).squeeze()
+                #     log_probs = nn.LogSoftmax(1)(s)
+                #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
+                #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
+                #     loss_id_distinct += (- label * log_probs).mean(0).sum()
 
                 #### triplet loss
                 # target = targets.max(1)[1] ###### for mixup
@@ -257,7 +257,7 @@ def ori_vit_do_train_with_amp(cfg,
     eval_model.load_param(load_path)
     logger.info('load weights from best.pth')
     if 'DG' in cfg.DATASETS.TEST[0]:
-        do_inference_multi_targets(cfg, model, num_query, logger)
+        do_inference_multi_targets(cfg, model, logger)
     else:
         for testname in cfg.DATASETS.TEST:
             val_loader, num_query = build_reid_test_loader(cfg, testname)

@@ -3,7 +3,7 @@ from config import cfg
 import argparse
 from data.build_DG_dataloader import build_reid_test_loader
 from model import make_model
-from processor.inf_processor import do_inference
+from processor.inf_processor import do_inference, do_inference_multi_targets
 from utils.logger import setup_logger
 
 
@@ -46,22 +46,9 @@ if __name__ == "__main__":
     else:
         print("==== random param ====")
 
-    for testname in cfg.DATASETS.TEST:
-        if 'DG' in testname:
-            cmc_avg, mAP_avg = [0 for i in range(50)], 0
-            for split_id in range(10):
-                if testname == 'DG_VIPeR':
-                    split_id = 'split_{}a'.format(split_id+1)
-                val_loader, num_query = build_reid_test_loader(cfg, testname, opt=split_id)
-                cmc, mAP = do_inference(cfg, model, val_loader, num_query)
-                cmc_avg += cmc
-                mAP_avg += mAP
-            cmc_avg /= 10
-            mAP_avg /= 10
-            logger.info("===== Avg Results for 10 splits of {} =====".format(testname))
-            logger.info("mAP: {:.1%}".format(mAP_avg))
-            for r in [1, 5, 10]:
-                logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_avg[r - 1]))
-        else:
+    if 'DG' in cfg.DATASETS.TEST[0]:
+        do_inference_multi_targets(cfg, model, logger)
+    else:
+        for testname in cfg.DATASETS.TEST:
             val_loader, num_query = build_reid_test_loader(cfg, testname)
             do_inference(cfg, model, val_loader, num_query)
