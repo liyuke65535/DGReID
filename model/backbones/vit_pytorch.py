@@ -29,7 +29,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import collections.abc as container_abcs
-from einops import rearrange
+# from einops import rearrange
 
 from model.backbones.InstanceNorm import batchnorm_1d, instancenorm_1d, layernorm_1d
 

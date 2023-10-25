@@ -1,7 +1,7 @@
 import logging
 import os
 import random
-from einops import rearrange
+# from einops import rearrange
 from model.backbones.mae import PretrainVisionTransformerDecoder, color_vit_decoder, get_sinusoid_encoding_table, mask_vit_decoder, pretrain_mae_base_patch16_224
 from model.backbones.normalizations import BatchNorm, InstanceNorm
 from model.backbones.prompt_vit import deit_small_patch16_224_prompt_vit, deit_tiny_patch16_224_prompt_vit, vit_base_patch16_224_mix_vit, vit_base_patch16_224_prompt_vit, vit_base_patch32_224_prompt_vit, vit_large_patch16_224_prompt_vit, vit_small_patch16_224_prompt_vit

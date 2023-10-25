@@ -6,7 +6,7 @@ from .autoaugment import AutoAugment
 from PIL import Image, ImageFilter, ImageOps
 
 from .transforms import LGT
-from .transforms import rand_rotate
+# from .transforms import rand_rotate
 
 class GaussianBlur(object):
     """

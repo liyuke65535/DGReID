@@ -1,10 +1,10 @@
 import torch
 from torch.utils.data import Dataset
-import cv2
+# import cv2
 import numpy as np
 import PIL.Image as Image
 from data.transforms.mask_generator import PartAwareMaskGenerator, RandomMaskingGenerator
-from data.transforms.transforms import rand_rotate
+# from data.transforms.transforms import rand_rotate
 
 from .data_utils import read_image
 
