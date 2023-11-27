@@ -6,7 +6,7 @@ from collections import deque
 
 import numpy as np
 from PIL import Image
-import cv2
+# import cv2
 from .functional import to_tensor, augmentations_reid
 from torchvision.transforms.functional import rotate
 
@@ -248,36 +248,36 @@ class LGT(object):
 # Images of different shapes 
 # fail to be collected in a batch as TORCH TENSORs.
 
-## new: keep size
-class rand_rotate(object):
-    def __init__(self, prob=0.5, degrees=[0, 180]):
-        self.prob = prob
-        self.degrees = degrees
-    def __call__(self, img):
-        if random.uniform(0, 1) > self.prob:
-            return img
-        angel_label = {
-            0: 0,
-            180: 1
-        }
-        degree = random.choice(self.degrees)
-        # print(degree)
-        img = np.asarray(img)
-        assert img.shape[-1] <= 3
-        h,w,c = img.shape
-        # print(h,w)
-        if degree == 0:
-            ret = img
-        elif degree == 90:
-            ret = img.transpose(1,0,2)[:,::-1,:]
-            ret = cv2.resize(ret, [w,h], interpolation=3)
-        elif degree == 180:
-            ret = img[::-1,::-1]
-            # ret = cv2.resize(ret, [h,w], interpolation=3)
-        else:
-            ret = img.transpose(1,0,2)[::-1]
-            ret = cv2.resize(ret, [w,h], interpolation=3)
-        return angel_label[degree], Image.fromarray(ret)
+# ## new: keep size
+# class rand_rotate(object):
+#     def __init__(self, prob=0.5, degrees=[0, 180]):
+#         self.prob = prob
+#         self.degrees = degrees
+#     def __call__(self, img):
+#         if random.uniform(0, 1) > self.prob:
+#             return img
+#         angel_label = {
+#             0: 0,
+#             180: 1
+#         }
+#         degree = random.choice(self.degrees)
+#         # print(degree)
+#         img = np.asarray(img)
+#         assert img.shape[-1] <= 3
+#         h,w,c = img.shape
+#         # print(h,w)
+#         if degree == 0:
+#             ret = img
+#         elif degree == 90:
+#             ret = img.transpose(1,0,2)[:,::-1,:]
+#             ret = cv2.resize(ret, [w,h], interpolation=3)
+#         elif degree == 180:
+#             ret = img[::-1,::-1]
+#             # ret = cv2.resize(ret, [h,w], interpolation=3)
+#         else:
+#             ret = img.transpose(1,0,2)[::-1]
+#             ret = cv2.resize(ret, [w,h], interpolation=3)
+#         return angel_label[degree], Image.fromarray(ret)
     
 if __name__ == '__main__':
     img = Image.open("/home/nihao/data/market1501/bounding_box_train/0002_c1s1_000451_03.jpg")

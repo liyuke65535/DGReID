@@ -5,3 +5,5 @@ tb_log
 vis
 visualize
 visualization
+*.t
+log

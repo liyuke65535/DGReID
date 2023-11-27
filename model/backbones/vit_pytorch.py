@@ -29,7 +29,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import collections.abc as container_abcs
-from einops import rearrange
+# from einops import rearrange
 
 from model.backbones.InstanceNorm import batchnorm_1d, instancenorm_1d, layernorm_1d
 
@@ -456,17 +456,17 @@ class TransReID(nn.Module):
     """ Transformer-based Object Re-Identification
     """
     def __init__(self, img_size=224, patch_size=16, stride_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
-                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., hybrid_backbone=None, norm_layer=nn.LayerNorm, stem_conv=False, **kwargs):
+                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., hybrid_backbone=None, norm_layer=nn.LayerNorm, **kwargs):
         super().__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         if hybrid_backbone is not None:
             self.patch_embed = HybridEmbed(
                 hybrid_backbone, img_size=img_size, in_chans=in_chans, embed_dim=embed_dim)
-        elif stem_conv:
+        elif 'stem_conv' in kwargs.keys() and kwargs['stem_conv']:
             self.patch_embed = PatchEmbed_conv_stem(
                 img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,
-                embed_dim=embed_dim, stem_conv = stem_conv)
+                embed_dim=embed_dim, stem_conv = True)
         else:
             self.patch_embed = PatchEmbed_overlap(
                 img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,

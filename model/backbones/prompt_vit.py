@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import collections.abc as container_abcs
-from einops import rearrange
+# from einops import rearrange
 from model.backbones.mix_style_algos import DomainMix,EFDMix,DomainQueue,MixHistogram,MixStyle_1d,Mixup
 
 from model.backbones.vit_pytorch import Block, PatchEmbed_overlap, trunc_normal_
