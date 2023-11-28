@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from data.build_DG_dataloader import build_reid_test_loader
 from loss.triplet_loss import TripletLoss, euclidean_dist, hard_example_mining
-from model import make_model_clipreid
+from model import make_model_clipreid_add_info
 from processor.inf_processor import do_inference, do_inference_multi_targets
 from utils.meter import AverageMeter
 from torch.cuda import amp
@@ -80,9 +80,9 @@ def do_train_stage1(cfg,
             target = labels_list[b_list]
             image_features = image_features_list[b_list]
             with amp.autocast(enabled=True):
-                text_features = model(label = target, get_text = True)
-            loss_i2t = xent(image_features, text_features, target, target)
-            loss_t2i = xent(text_features, image_features, target, target)
+                text_features = model(x=image_features, label = target, get_text = True)
+            loss_i2t = sum([xent(image_features, t, target, target) for t in text_features])
+            loss_t2i = sum([xent(t, image_features, target, target) for t in text_features])
 
             loss = loss_i2t + loss_t2i
 
@@ -171,21 +171,42 @@ def do_train_stage2(cfg,
     left = num_classes-batch* (num_classes//batch)
     if left != 0 :
         i_ter = i_ter+1
-<<<<<<< HEAD
 
-=======
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
-    text_features = []
-    with torch.no_grad():
-        for i in range(i_ter):
-            if i+1 != i_ter:
-                l_list = torch.arange(i*batch, (i+1)* batch)
-            else:
-                l_list = torch.arange(i*batch, num_classes)
-            with amp.autocast(enabled=True):
-                text_feature = model(label = l_list, get_text = True)
-            text_features.append(text_feature.cpu())
-        text_features = torch.cat(text_features, 0).cuda()
+    # image_features = []
+    # labels = []
+    # with torch.no_grad():
+    #     for n_iter, informations in enumerate(train_loader_stage2):
+    #         img = informations['images'].to(device)
+    #         target = informations['targets'].to(device)
+    #         with amp.autocast(enabled=True):
+    #             image_feature = model(img, target, get_image = True)
+    #             for i, img_feat in zip(target, image_feature):
+    #                 labels.append(i)
+    #                 image_features.append(img_feat.cpu())
+    #     labels_list = torch.stack(labels, dim=0).cuda() #N
+    #     image_features_list = torch.stack(image_features, dim=0).cuda()
+
+    #     batch = cfg.SOLVER.STAGE1.IMS_PER_BATCH
+    #     num_image = labels_list.shape[0]
+    #     i_ter = num_image // batch
+    # del labels, image_features
+
+    # text_features = []
+    # with torch.no_grad():
+    #     num_image = labels_list.shape[0]
+    #     iter_list = torch.randperm(num_image).to(device)
+    #     for i in range(i_ter):
+    #         # if i+1 != i_ter:
+    #         #     l_list = torch.arange(i*batch, (i+1)* batch)
+    #         # else:
+    #         #     l_list = torch.arange(i*batch, num_classes)
+
+    #         target = labels_list[i*batch: (i+1)*batch]
+    #         img_feature = image_features_list[i*batch: (i+1)*batch]
+    #         with amp.autocast(enabled=True):
+    #             text_feature = model(x = img_feature, label = target, get_text = True)
+    #         text_features.append(text_feature.cpu())
+    #     text_features = torch.cat(text_features, 0).cuda()
 
     for epoch in range(1, epochs + 1):
         start_time = time.time()
@@ -205,8 +226,8 @@ def do_train_stage2(cfg,
             target_cam, target_view = None, None
 
             with amp.autocast(enabled=True):
-                score, feat, image_features = model(x = img, label = target, cam_label=target_cam, view_label=target_view)
-                i2t_score = image_features @ text_features.t()
+                score, feat, image_features, text_features = model(x = img, label = target, cam_label=target_cam, view_label=target_view)
+                i2t_score = [image_features @ text.t() for text in text_features]
 
                 #### image2image id loss
                 bs = img.size(0)
@@ -242,9 +263,12 @@ def do_train_stage2(cfg,
                 # loss_tri = torch.tensor(0.0, device=device)
 
                 #### image2text id loss
-                log_probs_i2t = nn.LogSoftmax(dim=1)(i2t_score)
-<<<<<<< HEAD
-                loss_id_i2t = (- soft_targets * log_probs_i2t).mean(0).sum()
+                if isinstance(i2t_score):
+                    log_probs_i2t = [nn.LogSoftmax(dim=1)(s) for s in i2t_score]
+                    loss_id_i2t = sum([(- soft_targets * log).mean(0).sum()] for log in log_probs_i2t)
+                else:
+                    log_probs_i2t = nn.LogSoftmax(dim=1)(i2t_score)
+                    loss_id_i2t = (- soft_targets * log_probs_i2t).mean(0).sum()
                 # loss_id_i2t = torch.tensor(0.0, device=device)
 
                 #### image2text triplet loss
@@ -254,12 +278,6 @@ def do_train_stage2(cfg,
                 loss_tri_i2t = nn.SoftMarginLoss()(dist_an_i2t - dist_ap_i2t, y)
 
                 loss = loss_id + loss_tri + loss_id_i2t + loss_tri_i2t
-=======
-                loss_i2t = (- soft_targets * log_probs_i2t).mean(0).sum()
-                # loss_i2t = torch.tensor(0.0, device=device)
-
-                loss = loss_id + loss_tri + loss_i2t
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
 
             scaler.scale(loss).backward()
 
@@ -272,12 +290,8 @@ def do_train_stage2(cfg,
                 scaler.step(optimizer_center)
                 scaler.update()
 
-<<<<<<< HEAD
             # i2t_acc = (i2t_score.max(1)[1] == target).float().mean()
             i2t_acc = 0.0
-=======
-            i2t_acc = (i2t_score.max(1)[1] == target).float().mean()
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
             i2i_acc = (score[0].max(1)[1] == target).float().mean()
             loss_meter.update(loss.item(), img.shape[0])
             i2t_acc_meter.update(i2t_acc, 1)
@@ -328,11 +342,7 @@ def do_train_stage2(cfg,
             else:
                 if epoch % eval_period == 0:
                     if 'DG' in cfg.DATASETS.TEST[0]:
-<<<<<<< HEAD
                         cmc, mAP = do_inference_multi_targets(cfg, model, logger)
-=======
-                        cmc, mAP = do_inference_multi_targets(cfg, model, num_query, logger)
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
                     else:
                         cmc, mAP = do_inference(cfg, model, val_loader, num_query)
                     torch.cuda.empty_cache()
@@ -351,7 +361,7 @@ def do_train_stage2(cfg,
 
     # final evaluation
     load_path = os.path.join(output_dir, cfg.MODEL.NAME + '_best.pth')
-    eval_model = make_model_clipreid.make_model(cfg, num_class=0)
+    eval_model = make_model_clipreid_add_info.make_model(cfg, num_class=0)
     eval_model.load_param(load_path)
     logger.info('load weights from best.pth')
     if 'DG' in cfg.DATASETS.TEST[0]:
