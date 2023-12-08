@@ -109,9 +109,17 @@ class build_transformer(nn.Module):
 
     def forward(self, x = None, label=None, get_image = False, get_text = False, cam_label= None, view_label=None):
         if get_text == True:
-            prompts_1 = self.prompt_learner(label) ##
-            prompts_2 = self.prompt_learner(x) ##
+            if label is not None:
+                prompts_1 = self.prompt_learner(label=label) ##
+            else:
+                prompts_1 = None
+            if x is not None:
+                prompts_2 = self.prompt_learner(img_feat=x) ##
+            else:
+                prompts_2 = None
             text_features_1 = self.text_encoder(prompts_1, self.prompt_learner.tokenized_prompts)
+            if prompts_2 is None:
+                return text_features_1
             text_features_2 = self.text_encoder(prompts_2, self.prompt_learner.tokenized_prompts)
             return text_features_1, text_features_2
         
@@ -148,8 +156,8 @@ class build_transformer(nn.Module):
         feat_proj = self.bottleneck_proj(img_feature_proj)
         
         if self.training:
-            prompts_1 = self.prompt_learner(label) ##
-            prompts_2 = self.prompt_learner(img_feature_proj) ##
+            prompts_1 = self.prompt_learner(label=label) ##
+            prompts_2 = self.prompt_learner(img_feat=img_feature_proj) ##
             text_features_1 = self.text_encoder(prompts_1, self.prompt_learner.tokenized_prompts)
             text_features_2 = self.text_encoder(prompts_2, self.prompt_learner.tokenized_prompts)
 
@@ -209,13 +217,10 @@ def load_clip_to_cpu(backbone_name, h_resolution, w_resolution, vision_stride_si
 class PromptLearner(nn.Module):
     def __init__(self, dataset_name, dtype, token_embedding, img_dim, num_class=0, num_cam=0):
         super().__init__()
-        n_cls_ctx = 4 ####### can it be modified?
-        n_cam_ctx = 2
-        n_img_ctx = 4
-        total_ctx = n_cls_ctx + n_img_ctx ## cls + image + cam
+        n_info_ctx = 4 ####### can it be modified?
         
         if any(x in dataset_name for x in ["veri", "VehicleID"]):
-            ctx_init = "A photo of a " + "X "*total_ctx + "vehicle."
+            ctx_init = "A photo of a " + "X "*n_info_ctx + "vehicle."
         else:
             ########### modify this
             ctx_init = "A photo of a " + "X "*4 + "person."
@@ -229,21 +234,21 @@ class PromptLearner(nn.Module):
             embedding = token_embedding(tokenized_prompts).type(dtype)
         self.tokenized_prompts = tokenized_prompts  # torch.Tensor
 
-        cls_vectors = torch.empty(num_class, n_cls_ctx, ctx_dim, dtype=dtype)
-        cam_vectors = torch.empty(num_cam, n_cam_ctx, ctx_dim, dtype=dtype)
+        cls_vectors = torch.empty(num_class, n_info_ctx, ctx_dim, dtype=dtype)
+        # cam_vectors = torch.empty(num_cam, n_cam_ctx, ctx_dim, dtype=dtype)
         nn.init.normal_(cls_vectors, std=0.02)
-        nn.init.normal_(cam_vectors, std=0.02)
+        # nn.init.normal_(cam_vectors, std=0.02)
         self.cls_ctx = nn.Parameter(cls_vectors)
-        self.cam_ctx = nn.Parameter(cam_vectors)
+        # self.cam_ctx = nn.Parameter(cam_vectors)
 
         
         # These token vectors will be saved when in save_model(),
         # but they should be ignored in load_model() as we want to use
         # those computed using the current class names
         self.register_buffer("token_prefix", embedding[:, :5, :])
-        self.register_buffer("token_suffix", embedding[:, 5 + total_ctx: , :])
+        self.register_buffer("token_suffix", embedding[:, 5 + n_info_ctx: , :])
         self.num_class = num_class
-        self.n_cls_ctx = n_cls_ctx
+        self.n_cls_ctx = n_info_ctx
 
         # ### same with CoCoOp
         # self.img_embed = nn.Sequential(OrderedDict([
@@ -253,24 +258,25 @@ class PromptLearner(nn.Module):
         # ]))
         self.img_embed = nn.Sequential(OrderedDict([
             ("basic_block", ResidualAttentionBlock(512, 8)),
-            ("upsample", nn.Linear(512, 512*n_img_ctx))
+            ("upsample", nn.Linear(512, 512*n_info_ctx))
         ]))
-        self.n_img_ctx = n_img_ctx
+        self.n_img_ctx = n_info_ctx
 
     def forward(self, label=None, img_feat=None):
-        b = label.shape[0]
-        prefix = self.token_prefix.expand(b, -1, -1)
-        suffix = self.token_suffix.expand(b, -1, -1)
-        if label:
-            add_ctx = self.cls_ctx[label]
-        elif img_feat:
-            add_ctx = self.img_embed(img_feat).reshape(-1, self.n_img_ctx, 512) ##
+        if label is not None:
+            info_ctx = self.cls_ctx[label]
+            b = label.shape[0]
+        elif img_feat is not None:
+            info_ctx = self.img_embed(img_feat).reshape(-1, self.n_img_ctx, 512) ##
+            b = img_feat.shape[0]
         else:
             raise Exception('error: no label and img_feat for prompt!')
+        prefix = self.token_prefix.expand(b, -1, -1)
+        suffix = self.token_suffix.expand(b, -1, -1)
         prompts = torch.cat(
             [
                 prefix,  # (n_cls, 1, dim)
-                add_ctx, # (n_cls, n_ctx, dim)
+                info_ctx, # (n_cls, n_ctx, dim)
                 suffix,  # (n_cls, *, dim)
             ],
             dim=1,

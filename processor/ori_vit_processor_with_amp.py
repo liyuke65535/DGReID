@@ -253,8 +253,8 @@ def ori_vit_do_train_with_amp(cfg,
 
     # final evaluation
     load_path = os.path.join(log_path, cfg.MODEL.NAME + '_best.pth')
-    eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
-    eval_model.load_param(load_path)
+    # eval_model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=0)
+    model.load_param(load_path)
     logger.info('load weights from best.pth')
     if 'DG' in cfg.DATASETS.TEST[0]:
         do_inference_multi_targets(cfg, model, logger)

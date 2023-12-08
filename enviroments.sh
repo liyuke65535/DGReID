@@ -5,3 +5,5 @@ pip install scikit-image
 pip install opencv-python
 pip install tensorboard
 pip install yacs
+pip install ftfy
+pip install regex

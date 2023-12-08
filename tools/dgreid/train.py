@@ -1,3 +1,12 @@
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+import random
+import torch
+import numpy as np
+import argparse
+
+from config import cfg
 from processor.XDED_processor import XDED_vit_do_train_with_amp
 from processor.color_vit_processor import color_vit_do_train_with_amp
 from processor.distill_processor import Distill_do_train
@@ -18,12 +27,6 @@ from model import make_model
 from solver import make_optimizer
 from solver.scheduler_factory import create_scheduler
 from loss.build_loss import build_loss
-import random
-import torch
-import numpy as np
-import os
-import argparse
-from config import cfg
 import loss as Patchloss
 from model.extract_features import extract_features
 import collections

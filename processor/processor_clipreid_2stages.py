@@ -171,10 +171,6 @@ def do_train_stage2(cfg,
     left = num_classes-batch* (num_classes//batch)
     if left != 0 :
         i_ter = i_ter+1
-<<<<<<< HEAD
-
-=======
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
     text_features = []
     with torch.no_grad():
         for i in range(i_ter):
@@ -243,23 +239,10 @@ def do_train_stage2(cfg,
 
                 #### image2text id loss
                 log_probs_i2t = nn.LogSoftmax(dim=1)(i2t_score)
-<<<<<<< HEAD
-                loss_id_i2t = (- soft_targets * log_probs_i2t).mean(0).sum()
-                # loss_id_i2t = torch.tensor(0.0, device=device)
-
-                #### image2text triplet loss
-                dist_mat_i2t = euclidean_dist(image_features, text_features)
-                dist_ap_i2t, dist_an_i2t = hard_example_mining(dist_mat_i2t, target)
-                y = dist_an_i2t.new().resize_as_(dist_an_i2t).fill_(1)
-                loss_tri_i2t = nn.SoftMarginLoss()(dist_an_i2t - dist_ap_i2t, y)
-
-                loss = loss_id + loss_tri + loss_id_i2t + loss_tri_i2t
-=======
                 loss_i2t = (- soft_targets * log_probs_i2t).mean(0).sum()
                 # loss_i2t = torch.tensor(0.0, device=device)
 
                 loss = loss_id + loss_tri + loss_i2t
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
 
             scaler.scale(loss).backward()
 
@@ -272,12 +255,7 @@ def do_train_stage2(cfg,
                 scaler.step(optimizer_center)
                 scaler.update()
 
-<<<<<<< HEAD
-            # i2t_acc = (i2t_score.max(1)[1] == target).float().mean()
-            i2t_acc = 0.0
-=======
             i2t_acc = (i2t_score.max(1)[1] == target).float().mean()
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
             i2i_acc = (score[0].max(1)[1] == target).float().mean()
             loss_meter.update(loss.item(), img.shape[0])
             i2t_acc_meter.update(i2t_acc, 1)
@@ -328,11 +306,7 @@ def do_train_stage2(cfg,
             else:
                 if epoch % eval_period == 0:
                     if 'DG' in cfg.DATASETS.TEST[0]:
-<<<<<<< HEAD
-                        cmc, mAP = do_inference_multi_targets(cfg, model, logger)
-=======
                         cmc, mAP = do_inference_multi_targets(cfg, model, num_query, logger)
->>>>>>> aa12cc7c152473168c8d6057e917c17e06f9e124
                     else:
                         cmc, mAP = do_inference(cfg, model, val_loader, num_query)
                     torch.cuda.empty_cache()
