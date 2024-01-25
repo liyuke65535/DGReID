@@ -112,6 +112,8 @@ class R1_mAP_eval():
         self.num_query = num_query
         self.max_rank = max_rank
         self.feat_norm = feat_norm
+        if feat_norm:
+            print("The test feature is normalized")
         self.reranking = reranking
 
     def reset(self):
@@ -128,7 +130,6 @@ class R1_mAP_eval():
     def compute(self):  # called after each epoch
         feats = torch.cat(self.feats, dim=0)
         if self.feat_norm:
-            # print("The test feature is normalized")
             feats = torch.nn.functional.normalize(feats, dim=1, p=2)  # along channel
         # query
         qf = feats[:self.num_query]

@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 from functools import partial
 
-from .vit_pytorch import Block, PatchEmbed_overlap, masked_vit, resize_pos_embed
+from .vit_pytorch import Block, PatchEmbed_overlap, resize_pos_embed
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_ as __call_trunc_normal_
 

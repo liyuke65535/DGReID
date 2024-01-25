@@ -258,28 +258,6 @@ class Block(nn.Module):
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
-'''
-local attention block
-'''
-class Local_Attention_Block(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., H=16, W=8,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
-        super().__init__()
-        self.norm1 = norm_layer(dim)
-        self.local_attn = Local_Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
-
-    def forward(self, x, mask = None):
-        # local attention
-        x = x + self.drop_path(self.local_attn(self.norm1(x), mask))
-        x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
-
 class PatchEmbed(nn.Module):
     """ Image to Patch Embedding
     """
@@ -443,14 +421,6 @@ class PatchEmbed_conv_stem(nn.Module):
         x = x.flatten(2).transpose(1, 2) # [64, 8, 768]
         return x
 
-from .my_norm import LBN
-
-norm_dict = {
-    'LN': nn.LayerNorm,
-    'BN': nn.BatchNorm1d,
-    'IN': nn.InstanceNorm1d,
-    'LBN': LBN,
-}
 
 class TransReID(nn.Module):
     """ Transformer-based Object Re-Identification
@@ -498,10 +468,10 @@ class TransReID(nn.Module):
         self.blocks = nn.ModuleList([
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
+                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=nn.LayerNorm)
             for i in range(depth)])
         self.depth = depth
-        self.norm = norm_layer(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim)
 
         # Classifier head
         self.fc = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
@@ -542,18 +512,10 @@ class TransReID(nn.Module):
         x = self.pos_drop(x)
 
         for i, blk in enumerate(self.blocks):
-            # if i < 3:
-                # x[:, 1:] = self.INs[i](x[:, 1:].transpose(-1,-2)).transpose(-1,-2)
-                # x[:, 1:] = self.INs[i](x[:, 1:])
-                # x[:, 1:] = self.ins_norm(x[:, 1:]) ## bad
-                # x[:, 1:] = self.lay_norm(x[:, 1:]) ## good
-                # x[:, 1:] = self.batch_norm(x[:, 1:]) ## very bad
-                # x[:, 1:] = layernorm_1d(self.embed_dim)(x[:, 1:])
             x = blk(x)
 
         x = self.norm(x)
 
-        # return x[:, 0]
         return x # (B, N, C)
 
     def forward(self, x):
@@ -593,333 +555,6 @@ class TransReID(nn.Module):
         # print("Number of parameter: %.2fM" % (total/1e6))
         return total/1e6
 
-class DistillViT(TransReID):
-    def __init__(self, img_size=224, patch_size=16, stride_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True, qk_scale=None, drop_rate=0, attn_drop_rate=0, drop_path_rate=0, hybrid_backbone=None, norm_layer=nn.LayerNorm):
-        super().__init__(img_size, patch_size, stride_size, in_chans, num_classes, embed_dim, depth, num_heads, mlp_ratio, qkv_bias, qk_scale, drop_rate, attn_drop_rate, drop_path_rate, hybrid_backbone, norm_layer)
-        self.depth = depth
-        self.norm_rb = nn.ModuleList(
-            [norm_layer(embed_dim) for i in range(depth-1)]
-        )
-    
-    def forward(self, x):
-        B = x.shape[0]
-        x = self.patch_embed(x)
-
-        cls_tokens = self.cls_token.expand(B, -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
-
-        x = x + self.pos_embed
-
-        x = self.pos_drop(x)
-        
-        layer_wise_tokens = []
-        for i, blk in enumerate(self.blocks):
-            x = blk(x)
-            layer_wise_tokens.append(x)
-            # if i < self.depth - 1: # through 12 LN
-            #     layer_wise_tokens.append(self.norm_rb[i](x))
-            # else:
-            #     layer_wise_tokens.append(self.norm(x))
-            
-        layer_wise_tokens = [self.norm(t) for t in layer_wise_tokens] # through 1 LN
-        # layer_wise_tokens.append(self.norm(layer_wise_tokens[-1])) # no LN, add res to final
-
-        return [(x[:, 0]) for x in layer_wise_tokens]
-
-class masked_vit(nn.Module):
-    """ Transformer-based Object Re-Identification
-    """
-    def __init__(self, img_size=224, patch_size=16, stride_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
-                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., hybrid_backbone=None, norm_layer=nn.LayerNorm, stem_conv=False):
-        super().__init__()
-        self.num_classes = num_classes
-        self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
-        if hybrid_backbone is not None:
-            self.patch_embed = HybridEmbed(
-                hybrid_backbone, img_size=img_size, in_chans=in_chans, embed_dim=embed_dim)
-        elif stem_conv:
-            self.patch_embed = PatchEmbed_conv_stem(
-                img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,
-                embed_dim=embed_dim, stem_conv = stem_conv)
-        else:
-            self.patch_embed = PatchEmbed_overlap(
-                img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,
-                embed_dim=embed_dim)
-        num_patches = self.patch_embed.num_patches
-
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
-
-        print('using drop_out rate is : {}'.format(drop_rate))
-        print('using attn_drop_out rate is : {}'.format(attn_drop_rate))
-        print('using drop_path rate is : {}'.format(drop_path_rate))
-
-        self.pos_drop = nn.Dropout(p=drop_rate)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
-
-        self.blocks = nn.ModuleList([
-            Block(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
-            for i in range(depth)])
-
-        self.norm = norm_layer(embed_dim)
-
-        # Classifier head
-        self.fc = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-        trunc_normal_(self.cls_token, std=.02)
-        trunc_normal_(self.pos_embed, std=.02)
-
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {'pos_embed', 'cls_token'}
-
-    def get_classifier(self):
-        return self.head
-
-    def reset_classifier(self, num_classes, global_pool=''):
-        self.num_classes = num_classes
-        self.fc = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-
-    def forward_features(self, x, mask=None, vis=False):
-        B = x.shape[0]
-        x = self.patch_embed(x)
-
-        cls_tokens = self.cls_token.expand(B, -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
-
-        x = x + self.pos_embed
-
-        x = self.pos_drop(x)
-        if self.training or vis: ##### add by me
-            C = x.size(-1) ##### add by me
-            x = x[~mask.bool()].reshape(B, -1, C) ##### add by me
-
-        for blk in self.blocks:
-            x = blk(x)
-
-        x = self.norm(x)
-
-        return x # (B, N, C)
-
-    def forward(self, x, mask=None, vis=False):
-        x = self.forward_features(x, mask, vis)
-        return x
-
-    def load_param(self, model_path):
-        param_dict = torch.load(model_path, map_location='cpu')
-        count = 0
-        if 'model' in param_dict:
-            param_dict = param_dict['model']
-        if 'state_dict' in param_dict:
-            param_dict = param_dict['state_dict']
-        for k, v in param_dict.items():
-            if 'head' in k:
-                continue
-            if 'patch_embed.proj.weight' in k and len(v.shape) < 4:
-                # For old models that I trained prior to conv based patchification
-                O, I, H, W = self.patch_embed.proj.weight.shape
-                v = v.reshape(O, -1, H, W)
-            elif k == 'pos_embed' and v.shape != self.pos_embed.shape:
-                # To resize pos embedding when using model at different size from pretrained weights
-                if 'distilled' in model_path:
-                    print('distill need to choose right cls token in the pth')
-                    v = torch.cat([v[:, 0:1], v[:, 2:]], dim=1)
-                v = resize_pos_embed(v, self.pos_embed, self.patch_embed.num_y, self.patch_embed.num_x)
-            try:
-                self.state_dict()[k].copy_(v)
-                count += 1
-            except:
-                print('===========================ERROR=========================')
-                print('shape do not match in k :{}: param_dict{} vs self.state_dict(){}'.format(k, v.shape, self.state_dict()[k].shape))
-        print('Load %d / %d layers.'%(count,len(self.state_dict().keys())))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        print("Number of parameter: %.2fM" % (total/1e6))
-
-
-'''
-our local attention vit
-'''
-class Local_Attention_ViT(nn.Module):
-    def __init__(self, img_size=224, patch_size=16, stride_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
-                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., hybrid_backbone=None, norm_layer=nn.LayerNorm, **kwargs):
-        super().__init__()
-        self.p_num = kwargs['p_num'] if 'p_num' in kwargs.keys() else 3
-        print("using {} part tokens.".format(self.p_num))
-
-        self.num_classes = num_classes
-        self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
-
-        self.pretrain_tag = kwargs['pretrain_tag']
-        if hybrid_backbone is not None:
-            self.patch_embed = HybridEmbed(
-                hybrid_backbone, img_size=img_size, in_chans=in_chans, embed_dim=embed_dim)
-        elif kwargs['pretrain_tag'] == 'lup':
-            self.patch_embed = PatchEmbed_conv_stem(
-                img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,
-                embed_dim=embed_dim, stem_conv = True)
-        else:
-            self.patch_embed = PatchEmbed_overlap(
-                img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,
-                embed_dim=embed_dim)
-
-        num_patches = self.patch_embed.num_patches + 1 + self.p_num
-        self.num_patches = num_patches
-        self.num_heads = num_heads
-
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.part_tokens = nn.Parameter(torch.zeros(1, self.p_num, embed_dim))
-        # for i in range(self.p_num):
-        #     self.part_tokens.append(nn.Parameter(torch.zeros(1, 1, embed_dim)))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
-
-        print('using drop_out rate is : {}'.format(drop_rate))
-        print('using attn_drop_out rate is : {}'.format(attn_drop_rate))
-        print('using drop_path rate is : {}'.format(drop_path_rate))
-
-        self.pos_drop = nn.Dropout(p=drop_rate)
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
-        
-        #### mask
-        # self.mask = self.attn_mask_generate(num_patches, self.patch_embed.num_y, self.patch_embed.num_x)
-        
-        self.blocks = nn.ModuleList([
-            Local_Attention_Block(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
-            for i in range(depth)])
-            
-        self.depth = depth
-        self.norm = norm_layer(embed_dim)
-
-        # Classifier head
-        self.fc = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-        trunc_normal_(self.cls_token, std=.02)
-        trunc_normal_(self.part_tokens, std=.02)
-        trunc_normal_(self.pos_embed, std=.02)
-        self.apply(self._init_weights)
-
-    def attn_mask_generate(self, N=132, H=16, W=8, device='cuda'):
-        k = self.p_num
-        mask = torch.ones(N,1, device=device)
-        mask[1 : self.p_num+1, 0] = 0
-        mask_ = (mask @ mask.t()).bool()
-        for i in range(k):
-            mask_ |= generate_2d_mask(H,W,0,i*H/k,W,H/k,i+1,True, device, self.p_num).bool()
-        mask_[1 : 4, 0] = True
-        mask_[0, 1 : 4] = True
-        return mask_
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {'pos_embed', 'cls_token'}
-
-    def get_classifier(self):
-        return self.head
-
-    def reset_classifier(self, num_classes, global_pool=''):
-        self.num_classes = num_classes
-        self.fc = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
-
-    def forward_features(self, x):
-        B = x.shape[0]
-        x = self.patch_embed(x)
-
-        cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        part_tokens = self.part_tokens.expand(B, -1, -1)
-        x = torch.cat([cls_tokens, part_tokens, x], dim=1)
-
-        x = x + self.pos_embed
-
-        x = self.pos_drop(x)
-        # layerwise_tokens = []
-
-        # mask = torch.ones([B, 1, self.num_patches, self.num_patches], device=x.device.type)
-        # mask[:,0] = self.attn_mask_generate(self.num_patches, self.patch_embed.num_y, self.patch_embed.num_x, x.device.type)
-        mask = self.attn_mask_generate(self.num_patches, self.patch_embed.num_y, self.patch_embed.num_x, x.device.type)
-        for blk in self.blocks:
-            x = blk(x, mask)
-            # layerwise_tokens.append(x)
-        # layerwise_tokens = [self.norm(t) for t in layerwise_tokens]
-        # return layerwise_tokens
-        return self.norm(x)
-
-    def forward(self, x):
-        x = self.forward_features(x)
-        return x
-
-    def load_param(self, model_path):
-        param_dict = torch.load(model_path, map_location='cpu')
-        count = 0
-        if 'model' in param_dict:
-            param_dict = param_dict['model']
-        if 'state_dict' in param_dict:
-            param_dict = param_dict['state_dict']
-        for k, v in param_dict.items():
-            if 'head' in k or 'dist' in k or 'pre_logits' in k: # ViT-L
-                continue
-            if 'patch_embed.proj.weight' in k and len(v.shape) < 4:
-                # For old models that I trained prior to conv based patchification
-                O, I, H, W = self.patch_embed.proj.weight.shape
-                v = v.reshape(O, -1, H, W)
-            elif k == 'pos_embed' and v.shape != self.pos_embed.shape:
-                # To resize pos embedding when using model at different size from pretrained weights
-                if 'distilled' in model_path:
-                    print('distill need to choose right cls token in the pth')
-                    v = torch.cat([v[:, 0:1], v[:, 2:]], dim=1)
-                    v = resize_pos_embed_part_vit(v, self.pos_embed, self.patch_embed.num_y, self.patch_embed.num_x)
-                elif self.pretrain_tag == 'lup':
-                    v_old = v
-                    b, n, c = v.size()
-                    v = torch.zeros([b,n+3,c], dtype=v_old.dtype)
-                    v[:, :3] = v_old[:, 0]
-                    v[:, 3:] = v_old
-                    print('Resized position embedding from size:{} to size: {} with height:{} width: {}'.format(v_old.shape, v.shape, self.patch_embed.num_y, self.patch_embed.num_x))
-                else:
-                    v = resize_pos_embed_part_vit(v, self.p_num, self.pos_embed, self.patch_embed.num_y, self.patch_embed.num_x)
-            elif 'cls_token' in k:
-                self.state_dict()['part_tokens'].copy_(v.expand(-1, self.p_num, -1))
-                self.state_dict()[k].copy_(v)
-                count += 2
-                continue
-            elif 'attn' in k:
-                self.state_dict()[k.replace('attn', 'local_attn')].copy_(v)
-                count += 1
-                continue
-            try:
-                self.state_dict()[k].copy_(v)
-                count += 1
-            except:
-                print('===========================ERROR=========================')
-                print('shape do not match in k :{}: param_dict{} vs self.state_dict(){}'.format(k, v.shape, self.state_dict()[k].shape))
-        print('Load %d / %d layers.'%(count,len(self.state_dict().keys())))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        print("Number of parameter: %.2fM" % (total/1e6))
-
 def resize_pos_embed(posemb, posemb_new, hight, width):
     # Rescale the grid of position embeddings when loading from state_dict. Adapted from
     # https://github.com/google-research/vision_transformer/blob/00883dd691c63a6830751563748663526e811cee/vit_jax/checkpoint.py#L224
@@ -953,60 +588,6 @@ def resize_pos_embed_part_vit(posemb, part_num, posemb_new, hight, width):
     posemb = torch.cat([posemb_token, posemb_grid], dim=1)
     return posemb
 
-def local_attention_vit_large(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm=nn.LayerNorm, **kwargs):
-    model = Local_Attention_ViT(
-        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,\
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
-        norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
-
-def mask_vit_base(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm=nn.LayerNorm, **kwargs):
-    model = masked_vit(
-        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,\
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
-        norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
-
-def local_attention_vit_base(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm=nn.LayerNorm, **kwargs):
-    model = Local_Attention_ViT(
-        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,\
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
-        norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
-
-def local_attention_vit_base_p32(img_size=(256, 128), stride_size=32, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm=nn.LayerNorm, **kwargs):
-    model = Local_Attention_ViT(
-        img_size=img_size, patch_size=32, stride_size=stride_size, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,\
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
-        norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
-
-def local_attention_vit_small(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm=nn.LayerNorm, **kwargs):
-    kwargs.setdefault('qk_scale', 768 ** -0.5)
-    model = Local_Attention_ViT(
-        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=768, depth=8, num_heads=8, mlp_ratio=3., qkv_bias=False,\
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
-        norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
-
-def local_attention_deit_small(img_size=(256, 128), stride_size=16, drop_path_rate=0.0, drop_rate=0.0, attn_drop_rate=0.0, norm=nn.LayerNorm, **kwargs):
-    model = Local_Attention_ViT(
-        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate, norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
-
-def local_attention_deit_tiny(img_size=(256, 128), stride_size=16, drop_path_rate=0.0, drop_rate=0.0, attn_drop_rate=0.0, norm=nn.LayerNorm, **kwargs):
-    model = Local_Attention_ViT(
-        img_size=img_size, patch_size=16, stride_size=stride_size, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
-        drop_path_rate=drop_path_rate, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate, norm_layer=partial(norm, eps=1e-6), **kwargs)
-
-    return model
 
 def vit_large_patch16_224_TransReID(img_size=(256, 128), stride_size=16, drop_rate=0.0, attn_drop_rate=0.0, drop_path_rate=0.1, norm='LN', **kwargs):
     model = TransReID(

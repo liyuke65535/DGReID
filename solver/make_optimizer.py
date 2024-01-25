@@ -1,9 +1,9 @@
 import torch
 from .sam import SAM
 
-def make_optimizer(cfg, model, center_criterion):
+def make_optimizer(cfg, img_extractor, unet, center_criterion):
     params = []
-    for key, value in model.named_parameters():
+    for key, value in img_extractor.named_parameters():
         if not value.requires_grad:
             continue
         lr = cfg.SOLVER.BASE_LR
@@ -18,13 +18,16 @@ def make_optimizer(cfg, model, center_criterion):
 
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
+    for key, value in unet.named_parameters():
+        if not value.requires_grad:
+            continue
+        weight_decay = cfg.SOLVER.WEIGHT_DECAY
+        params += [{"params": [value], "lr": 1e-5, "weight_decay": weight_decay}]
+
     if cfg.SOLVER.OPTIMIZER_NAME == 'SGD':
-        optimizer = getattr(torch.optim, cfg.SOLVER.OPTIMIZER_NAME)(params, momentum=cfg.SOLVER.MOMENTUM)
+        optimizer = torch.optim.SGD(params, momentum=cfg.SOLVER.MOMENTUM)
     elif cfg.SOLVER.OPTIMIZER_NAME == 'AdamW':
         optimizer = torch.optim.AdamW(params, lr=cfg.SOLVER.BASE_LR, weight_decay=cfg.SOLVER.WEIGHT_DECAY)
-    elif cfg.SOLVER.OPTIMIZER_NAME == 'SAM':
-        base_optimizer = torch.optim.SGD  # define an optimizer for the "sharpness-aware" update
-        optimizer = SAM(model.parameters(), base_optimizer, lr=cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM)
     else:
         optimizer = getattr(torch.optim, cfg.SOLVER.OPTIMIZER_NAME)(params)
     optimizer_center = torch.optim.SGD(center_criterion.parameters(), lr=cfg.SOLVER.CENTER_LR)

@@ -1,21 +1,15 @@
 import logging
 import os
 import random
-# from einops import rearrange
-from model.backbones.mae import PretrainVisionTransformerDecoder, color_vit_decoder, get_sinusoid_encoding_table, mask_vit_decoder, pretrain_mae_base_patch16_224
-from model.backbones.normalizations import BatchNorm, InstanceNorm
-from model.backbones.prompt_vit import deit_small_patch16_224_prompt_vit, deit_tiny_patch16_224_prompt_vit, vit_base_patch16_224_mix_vit, vit_base_patch16_224_prompt_vit, vit_base_patch32_224_prompt_vit, vit_large_patch16_224_prompt_vit, vit_small_patch16_224_prompt_vit
-from model.backbones.resnet_ibn_mix import Bottleneck_IBN, ResNet_IBN_mix
-from model.backbones.resnet_mix import ResNet_mix
-from model.backbones.swin_transformer import swin_base_patch4_window7_224, swin_small_patch4_window7_224
-# from threading import local
-from model.backbones.vit_pytorch import DistillViT, TransReID, deit_tiny_patch16_224_TransReID, local_attention_deit_small, local_attention_deit_tiny, local_attention_vit_base, local_attention_vit_base_p32, local_attention_vit_large, local_attention_vit_small, mask_vit_base, resize_pos_embed, vit_base_patch32_224_TransReID, vit_large_patch16_224_TransReID
+from model.backbones.vit_pytorch import TransReID, deit_tiny_patch16_224_TransReID, resize_pos_embed, vit_base_patch32_224_TransReID, vit_large_patch16_224_TransReID
 import torch
 import torch.nn as nn
 
 from .backbones.resnet import BasicBlock, ResNet, Bottleneck
 from .backbones.resnet_ibn import resnet50_ibn_b,resnet50_ibn_a,resnet101_ibn_b,resnet101_ibn_a
 from .backbones import vit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID, deit_small_patch16_224_TransReID
+from .backbones.swin_transformer import swin_base_patch4_window7_224, swin_small_patch4_window7_224
+
 
 __factory_T_type = {
     'vit_large_patch16_224_TransReID': vit_large_patch16_224_TransReID,
@@ -27,26 +21,6 @@ __factory_T_type = {
     'deit_tiny_patch16_224_TransReID': deit_tiny_patch16_224_TransReID,
     'swin_base_patch4_window7_224': swin_base_patch4_window7_224,
     'swin_small_patch4_window7_224': swin_small_patch4_window7_224,
-}
-
-__factory_PT_type = {
-    'vit_large_patch16_224_prompt_vit': vit_large_patch16_224_prompt_vit,
-    'vit_base_patch16_224_prompt_vit': vit_base_patch16_224_prompt_vit,
-    'vit_base_patch32_224_prompt_vit': vit_base_patch32_224_prompt_vit,
-    'deit_base_patch16_224_prompt_vit': vit_base_patch16_224_prompt_vit,
-    'vit_small_patch16_224_prompt_vit': vit_small_patch16_224_prompt_vit,
-    'deit_small_patch16_224_prompt_vit': deit_small_patch16_224_prompt_vit,
-    'deit_tiny_patch16_224_prompt_vit': deit_tiny_patch16_224_prompt_vit,
-}
-
-__factory_LAT_type = {
-    'vit_large_patch16_224_TransReID': local_attention_vit_large,
-    'vit_base_patch16_224_TransReID': local_attention_vit_base,
-    'vit_base_patch32_224_TransReID': local_attention_vit_base_p32,
-    'deit_base_patch16_224_TransReID': local_attention_vit_base,
-    'vit_small_patch16_224_TransReID': local_attention_vit_small,
-    'deit_small_patch16_224_TransReID': local_attention_deit_small,
-    'deit_tiny_patch16_224_TransReID': local_attention_deit_tiny,
 }
 
 def weights_init_kaiming(m):
@@ -355,21 +329,8 @@ imagenet_path_name = {
     'vit_small_patch16_224_TransReID': 'vit_small_p16_224-15ec54c9.pth',
     'deit_small_patch16_224_TransReID': 'deit_small_distilled_patch16_224-649709d9.pth',
     'deit_tiny_patch16_224_TransReID': 'deit_tiny_distilled_patch16_224-b40b3cf7.pth', 
-    'vit_large_patch16_224_prompt_vit': 'jx_vit_large_p16_224-4ee7a4dc.pth',
-    'vit_base_patch16_224_prompt_vit': 'jx_vit_base_p16_224-80ecf9dd.pth',
-    'vit_base_patch32_224_prompt_vit': 'jx_vit_base_patch32_224_in21k-8db57226.pth',
-    'deit_base_patch16_224_prompt_vit': 'deit_base_distilled_patch16_224-df68dfff.pth',
-    'vit_small_patch16_224_prompt_vit': 'vit_small_p16_224-15ec54c9.pth',
-    'deit_small_patch16_224_prompt_vit': 'deit_small_distilled_patch16_224-649709d9.pth',
-    'deit_tiny_patch16_224_prompt_vit': 'deit_tiny_distilled_patch16_224-b40b3cf7.pth',
     'swin_base_patch4_window7_224': 'swin_base_patch4_window7_224_22k.pth', 
     'swin_small_patch4_window7_224': 'swin_small_patch4_window7_224_22k.pth',
-}
-
-norm_layer = {
-    'LN': nn.LayerNorm,
-    'BN': BatchNorm,
-    'IN': InstanceNorm,
 }
 
 in_plane_dict = {
@@ -412,7 +373,6 @@ class build_vit(nn.Module):
 
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
 
         if self.pretrain_choice == 'imagenet':
             self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
@@ -420,8 +380,7 @@ class build_vit(nn.Module):
                 stride_size=cfg.MODEL.STRIDE_SIZE,
                 drop_path_rate=cfg.MODEL.DROP_PATH,
                 drop_rate= cfg.MODEL.DROP_OUT,
-                attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-                norm=norm)
+                attn_drop_rate=cfg.MODEL.ATT_DROP_RATE)
             path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
             self.model_path = os.path.join(model_path_base, path)
             self.base.load_param(self.model_path)
@@ -433,7 +392,7 @@ class build_vit(nn.Module):
                 drop_path_rate=cfg.MODEL.DROP_PATH,
                 drop_rate= cfg.MODEL.DROP_OUT,
                 attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-                norm=norm, stem_conv=True)
+                stem_conv=True)
             path = lup_path_name[cfg.MODEL.TRANSFORMER_TYPE]
             self.model_path = os.path.join(model_path_base, path)
             self.base.load_param(self.model_path)
@@ -453,144 +412,16 @@ class build_vit(nn.Module):
                     for i in range(len(num_cls_dom_wise))
             )
 
-    def forward(self, x, target=None, domain=None):
+    def forward(self, x, domain=None):
         x = self.base(x) # B, N, C
         global_feat = x[:, 0] # cls token for global feature
 
         feat = self.bottleneck(global_feat)
 
         if self.training:
-            #### original
-            # cls_score = self.classifier(feat)
-            # #### trick from ACL
-            # global_feat = nn.functional.normalize(feat,2,1)
-            # global_feat = feat
-            # return cls_score, global_feat, target, None
-
-            #### multi-domain head
+            ### original
             cls_score = self.classifier(feat)
-            cls_score_ = []
-            for i in range(len(self.classifiers)):
-                if i not in domain:
-                    cls_score_.append(None)
-                    continue
-                idx = torch.nonzero(domain==i).squeeze()
-                cls_score_.append(self.classifiers[i](feat[idx]))
-            return cls_score, global_feat, target, cls_score_
-        
-            # #### memoryhead (from M3L)
-            # return feat, global_feat, target, None
-
-        else:
-            return feat if self.neck_feat == 'after' else global_feat
-
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        count = 0
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            # if 'bottleneck' in i:
-            #     continue
-            if i in self.state_dict().keys():
-                self.state_dict()[i].copy_(param_dict[i])
-                count += 1
-        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
-
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
-
-class build_llava_vit(nn.Module):
-    def __init__(self, num_classes, cfg, num_cls_dom_wise=None):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 1024
-
-        print('using Transformer_type: vit as a backbone')
-
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-
-        from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
-
-        # path = "/home/.cache/huggingface/hub/models--openai--clip-vit-large-patch14-336/snapshots/ce19dc912ca5cd21c8a653c79e251e808ccabcd1/"
-        path = "openai/clip-vit-large-patch14-336"
-        self.base = CLIPVisionModel.from_pretrained(path).vision_model
-
-        ##############################################################
-        ######### reset patch embed and resize the pos embed #########
-        img_size = cfg.INPUT.SIZE_TRAIN
-        patch_size = 14
-        # stride_size = 14
-        stride_size = cfg.MODEL.STRIDE_SIZE
-        patch_embed_old = self.base.embeddings.patch_embedding.weight
-        self.base.embeddings.patch_embedding = nn.Conv2d(
-            in_channels=3,
-            out_channels=1024,
-            kernel_size=patch_size,
-            stride=stride_size,
-            bias=False,
-        )
-        self.state_dict()['base.embeddings.patch_embedding.weight'].copy_(patch_embed_old)
-        num_x = (img_size[1] - patch_size) // stride_size + 1
-        num_y = (img_size[0] - patch_size) // stride_size + 1
-        self.base.embeddings.num_patches = num_x * num_y
-        self.base.embeddings.num_positions = num_x * num_y + 1
-        self.base.embeddings.position_ids = torch.arange(num_x * num_y + 1).expand((1, -1))
-        pos_embed_old = self.base.embeddings.position_embedding.weight.unsqueeze(0)
-        self.base.embeddings.position_embedding = nn.Embedding(num_x * num_y + 1, self.base.embeddings.position_embedding.embedding_dim)
-        pos_embed = resize_pos_embed(pos_embed_old, self.base.embeddings.position_embedding.weight, num_x, num_y)
-        self.state_dict()['base.embeddings.position_embedding.weight'].copy_(pos_embed.squeeze())
-        ######### reset patch embed and resize the pos embed #########
-        ##############################################################
-
-        # print(self.base)
-
-        # self.base.load_param(self.model_path)
-        # print('Loading pretrained llava vit model......from {}'.format(self.model_path))
-            
-        #### original one
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
-
-        #### multi-domain head
-        if num_cls_dom_wise is not None:
-            self.classifiers = nn.ModuleList(
-                nn.Linear(self.in_planes, num_cls_dom_wise[i])\
-                    for i in range(len(num_cls_dom_wise))
-            )
-
-    def forward(self, x, target=None, domain=None):
-        x = self.base(x)['last_hidden_state'] # B, N, C
-        global_feat = x[:, 0] # cls token for global feature
-
-        feat = self.bottleneck(global_feat)
-
-        if self.training:
-            #### original
-            cls_score = self.classifier(feat)
-            #### trick from ACL
-            global_feat = nn.functional.normalize(feat,2,1)
-            global_feat = feat
-            return cls_score, global_feat, target, None
+            return cls_score, global_feat
 
             # #### multi-domain head
             # cls_score = self.classifier(feat)
@@ -602,9 +433,6 @@ class build_llava_vit(nn.Module):
             #     idx = torch.nonzero(domain==i).squeeze()
             #     cls_score_.append(self.classifiers[i](feat[idx]))
             # return cls_score, global_feat, target, cls_score_
-        
-            # #### memoryhead (from M3L)
-            # return feat, global_feat, target, None
 
         else:
             return feat if self.neck_feat == 'after' else global_feat
@@ -633,8 +461,7 @@ class build_llava_vit(nn.Module):
         logger = logging.getLogger('reid.train')
         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
-
-class build_memory_cls_vit(nn.Module):
+class build_diffusion_reid(nn.Module):
     def __init__(self, num_classes, cfg, factory, num_cls_dom_wise=None):
         super().__init__()
         self.cfg = cfg
@@ -654,51 +481,55 @@ class build_memory_cls_vit(nn.Module):
 
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.num_classes = num_classes
-        norm = norm_layer[cfg.MODEL.NORM.TYPE]
-        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
-            (img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            norm=norm)
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-
-        # self.base = ResNet(last_stride=1,
-        #                        block=Bottleneck,
-        #                        layers=[3, 4, 6, 3])
-        # path = "resnet50-0676ba61.pth"
-        # self.in_planes = 2048
 
         if self.pretrain_choice == 'imagenet':
+            self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
+                (img_size=cfg.INPUT.SIZE_TRAIN,
+                stride_size=cfg.MODEL.STRIDE_SIZE,
+                drop_path_rate=cfg.MODEL.DROP_PATH,
+                drop_rate= cfg.MODEL.DROP_OUT,
+                attn_drop_rate=cfg.MODEL.ATT_DROP_RATE)
+            path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
             self.model_path = os.path.join(model_path_base, path)
             self.base.load_param(self.model_path)
             print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
+        elif self.pretrain_choice == 'LUP':
+            self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
+                (img_size=cfg.INPUT.SIZE_TRAIN,
+                stride_size=cfg.MODEL.STRIDE_SIZE,
+                drop_path_rate=cfg.MODEL.DROP_PATH,
+                drop_rate= cfg.MODEL.DROP_OUT,
+                attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
+                stem_conv=True)
+            path = lup_path_name[cfg.MODEL.TRANSFORMER_TYPE]
+            self.model_path = os.path.join(model_path_base, path)
+            self.base.load_param(self.model_path)
+            print('Loading pretrained LUP model......from {}'.format(self.model_path))
             
-        # #### original one
-        # self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        # self.classifier.apply(weights_init_classifier)
+        #### original one
+        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier.apply(weights_init_classifier)
         self.bottleneck = nn.BatchNorm1d(self.in_planes)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
-        # #### multi-domain head
-        # if num_cls_dom_wise is not None:
-        #     self.classifiers = nn.ModuleList(
-        #         nn.Linear(self.in_planes, num_cls_dom_wise[i])\
-        #             for i in range(len(num_cls_dom_wise))
-        #     )
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i])\
+                    for i in range(len(num_cls_dom_wise))
+            )
 
-    def forward(self, x, target=None, domain=None):
+    def forward(self, x, domain=None):
         x = self.base(x) # B, N, C
         global_feat = x[:, 0] # cls token for global feature
-        # global_feat = x.mean(dim=[2,3]) # for resnet
+
         feat = self.bottleneck(global_feat)
 
         if self.training:
-            # #### original
-            # cls_score = self.classifier(feat)
-            # return cls_score, global_feat, target, None
+            ### original
+            cls_score = self.classifier(feat)
+            return cls_score, global_feat
 
             # #### multi-domain head
             # cls_score = self.classifier(feat)
@@ -710,9 +541,6 @@ class build_memory_cls_vit(nn.Module):
             #     idx = torch.nonzero(domain==i).squeeze()
             #     cls_score_.append(self.classifiers[i](feat[idx]))
             # return cls_score, global_feat, target, cls_score_
-        
-            #### memoryhead (from M3L)
-            return feat, global_feat, target, None
 
         else:
             return feat if self.neck_feat == 'after' else global_feat
@@ -740,394 +568,14 @@ class build_memory_cls_vit(nn.Module):
         total = sum([param.nelement() for param in self.parameters()])
         logger = logging.getLogger('reid.train')
         logger.info("Number of parameter: %.2fM" % (total/1e6))
-
-class build_prompt_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
-        self.num_classes = num_classes
-        self.neck_feat = cfg.TEST.FEAT_NORM
-        self.num_block = cfg.MODEL.DISTILL.NUM_SELECT_BLOCK
-        self.if_head = cfg.MODEL.DISTILL.IF_HEAD
-        self.num_domains = cfg.DATASETS.NUM_DOMAINS
-        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](
-            img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            num_domains=self.num_domains)
-
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        model_path = os.path.join(model_path_base, path)
-        self.base.load_param(model_path)
-        print('Loading pretrained ImageNet model......from {}'.format(model_path))
-
-        self.bottleneck = nn.BatchNorm1d(self.in_planes) 
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-
-        ##### adpative domain weights
-        # self.domain_weight = nn.Linear(self.in_planes*self.base.prompt_length, self.num_domains, bias=False)
-        # self.domain_weight = nn.Linear(self.in_planes, self.num_domains, bias=False)
-        # self.domain_weight.apply(weights_init_classifier)
-        
-
-        self.domain_head = nn.Linear(self.in_planes*self.base.prompt_length, self.num_domains, bias=False)
-
-    def forward(self, x, domain=None):
-        B = x.shape[0]
-        if self.training:
-            x = self.base(x, domain=domain) # B, N, C
-            cls_token = x[:, 0] # cls token for global feature
-
-            dom_token = x[:, -self.base.prompt_length:].view(B, -1)
-            dom_pre = self.domain_head(dom_token)
-
-            feat = self.bottleneck(cls_token)
-
-            cls_score = self.classifier(feat)
-            return cls_score, cls_token, dom_pre
-        else:
-            x = self.base(x, stage='eval_1') # B, N, C
-            cls_token = x[:, 0]
-            return cls_token
-
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        count = 0
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            # if 'bottleneck' in i:
-            #     continue
-            if i in self.state_dict().keys():
-                self.state_dict()[i].copy_(param_dict[i])
-                count += 1
-        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
-
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
-
-class build_mix_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory, num_cls_dom_wise=None):
-        super().__init__()
-        self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
-        self.num_classes = num_classes
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.num_block = cfg.MODEL.DISTILL.NUM_SELECT_BLOCK
-        self.if_head = cfg.MODEL.DISTILL.IF_HEAD
-        self.num_domains = cfg.DATASETS.NUM_DOMAINS
-        self.base = vit_base_patch16_224_mix_vit(
-            img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            num_domains=self.num_domains)
-
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        model_path = os.path.join(model_path_base, path)
-        self.base.load_param(model_path)
-        print('Loading pretrained ImageNet model......from {}'.format(model_path))
-
-        self.bottleneck = nn.BatchNorm1d(self.in_planes) 
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-
-        #### multi-domain head
-        if num_cls_dom_wise is not None:
-            self.classifiers = nn.ModuleList(
-                nn.Linear(self.in_planes, num_cls_dom_wise[i], bias=False)\
-                    for i in range(len(num_cls_dom_wise))
-            )
-            for c in self.classifiers:
-                c.apply(weights_init_classifier)
-
-    def forward(self, x, labels=None, domains=None):
-        # x, tri_loss = self.base(x, labels, domains) # B, N, C
-        x = self.base(x, labels, domains) # B, N, C
-        global_feat = x[:, 0] # cls token for global feature
-        # global_feat = x
-
-        feat = self.bottleneck(global_feat)
-
-        if self.training:
-            # cls_score = self.classifier(feat)
-            # return cls_score, global_feat, labels, None
-
-            #### multi-domain head
-            cls_score = self.classifier(feat)
-            cls_score_ = []
-            for i in range(len(self.classifiers)):
-                if i not in domains:
-                    cls_score_.append(None)
-                    continue
-                idx = torch.nonzero(domains==i).squeeze()
-                cls_score_.append(self.classifiers[i](feat[idx]))
-            return cls_score, global_feat, labels, cls_score_
-
-        else:
-            return feat if self.neck_feat == 'after' else global_feat
-
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        count = 0
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            # if 'bottleneck' in i:
-            #     continue
-            if i in self.state_dict().keys():
-                self.state_dict()[i].copy_(param_dict[i])
-                count += 1
-        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
-
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
-
-class build_distill_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory):
-        super().__init__()
-        self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
-        self.num_classes = num_classes
-        self.neck_feat = cfg.TEST.FEAT_NORM
-        self.num_block = cfg.MODEL.DISTILL.NUM_SELECT_BLOCK
-        self.if_head = cfg.MODEL.DISTILL.IF_HEAD
-        self.base = DistillViT(
-            img_size=cfg.INPUT.SIZE_TRAIN,
-            patch_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE
-            )
-
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        model_path = os.path.join(model_path_base, path)
-        self.base.load_param(model_path)
-        print('Loading pretrained ImageNet model......from {}'.format(model_path))
-        # 12 bnneck, 12 cls
-        self.bottleneck = nn.ModuleList()
-        self.classifier = nn.ModuleList()
-        for i in range(len(self.base.blocks)):
-            bottleneck = nn.BatchNorm1d(self.in_planes) 
-            bottleneck.bias.requires_grad_(False)
-            bottleneck.apply(weights_init_kaiming)
-            self.bottleneck.append(bottleneck)
-            classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-            classifier.apply(weights_init_classifier)
-            self.classifier.append(classifier)
-        
-    def forward(self, x):
-        num_block = self.num_block
-
-        list_out= self.base(x) # blocks, bs, C
-        global_feat = list_out[-1]
-        feat = self.bottleneck[-1](global_feat)
-        if self.training:
-            cls_scores = []
-            for i in range(self.base.depth):
-                feat = self.bottleneck[i](list_out[i])
-                cls_scores.append(self.classifier[i](feat))
-            output = {'feat': global_feat, 'score': cls_scores[-1]}
-            random_block_idx = random.sample(range(self.base.depth-1), num_block)
-            output_rbs = []
-            for n in random_block_idx:
-                output_rbs.append({'feat': list_out[n], 'score': cls_scores[n]})
-            return cls_scores, list_out, output, output_rbs, random_block_idx
-        else:
-            return feat if self.neck_feat == 'after' else global_feat
-
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        count = 0
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            # if 'bottleneck' in i:
-            #     continue
-            if i in self.state_dict().keys():
-                self.state_dict()[i].copy_(param_dict[i])
-                count += 1
-        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
-
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))
-
-
-
-'''
-local attention vit
-'''
-class build_local_attention_vit(nn.Module):
-    def __init__(self, num_classes, cfg, factory, pretrain_tag='imagenet'):
-        super().__init__()
-        self.cfg = cfg
-        model_path_base = cfg.MODEL.PRETRAIN_PATH
-        if pretrain_tag == 'lup':
-            path = lup_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        else:
-            path = imagenet_path_name[cfg.MODEL.TRANSFORMER_TYPE]
-        self.model_path = os.path.join(model_path_base, path)
-        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
-        self.cos_layer = cfg.MODEL.COS_LAYER
-        self.neck = cfg.MODEL.NECK
-        self.neck_feat = cfg.TEST.NECK_FEAT
-        self.in_planes = 768
-
-        print('using Transformer_type: local token vit as a backbone')
-
-        self.gap = nn.AdaptiveAvgPool2d(1)
-
-        self.num_classes = num_classes
-
-        self.base = factory[cfg.MODEL.TRANSFORMER_TYPE]\
-            (img_size=cfg.INPUT.SIZE_TRAIN,
-            stride_size=cfg.MODEL.STRIDE_SIZE,
-            drop_path_rate=cfg.MODEL.DROP_PATH,
-            drop_rate= cfg.MODEL.DROP_OUT,
-            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE,
-            pretrain_tag=pretrain_tag,
-            p_num=cfg.MODEL.PART_NUM)
-        if cfg.MODEL.TRANSFORMER_TYPE == 'deit_small_patch16_224_TransReID':
-            self.in_planes = 384
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'deit_tiny_patch16_224_TransReID':
-            self.in_planes = 192
-        elif cfg.MODEL.TRANSFORMER_TYPE == 'vit_large_patch16_224_TransReID':
-            self.in_planes = 1024
-        if self.pretrain_choice == 'imagenet':
-            self.base.load_param(self.model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(self.model_path))
-
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
-        self.bottleneck.bias.requires_grad_(False)
-        self.bottleneck.apply(weights_init_kaiming)
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
-        self.classifier.apply(weights_init_classifier)
-
-    def forward(self, x):
-        # layerwise_tokens = self.base(x) # B, N, C
-        # layerwise_cls_tokens = [t[:, 0] for t in layerwise_tokens] # cls token
-        # local_feat_list = layerwise_tokens[-1][:, 1: 4] # 3, 768
-
-        # layerwise_part_tokens = [[t[:, i] for i in range(1,4)] for t in layerwise_tokens] # 12 3 768
-        # feat = self.bottleneck(layerwise_cls_tokens[-1])
-
-        # if self.training:
-        #     cls_score = self.classifier(feat)
-        #     return cls_score, layerwise_cls_tokens, layerwise_part_tokens
-        # else:
-        #     return feat if self.neck_feat == 'after' else layerwise_cls_tokens[-1]
-        
-        x = self.base(x) # B, N, C
-        global_feat = x[:, 0] # cls token for global feature
-        part_token = x[:, 1:4]
-
-        feat = self.bottleneck(global_feat)
-
-        if self.training:
-            cls_score = self.classifier(feat)
-            return cls_score, global_feat, part_token
-        else:
-            return feat if self.neck_feat == 'after' else global_feat
-
-    def load_param(self, trained_path):
-        param_dict = torch.load(trained_path)
-        for i in param_dict:
-            if 'classifier' in i: # drop classifier
-                continue
-            self.state_dict()[i.replace('module.', '')].copy_(param_dict[i])
-        print('Loading trained model from {}'.format(trained_path))
-
-    def load_param_finetune(self, model_path):
-        param_dict = torch.load(model_path)
-        for i in param_dict:
-            self.state_dict()[i].copy_(param_dict[i])
-        print('Loading pretrained model for finetuning from {}'.format(model_path))
-
-    def compute_num_params(self):
-        total = sum([param.nelement() for param in self.parameters()])
-        logger = logging.getLogger('reid.train')
-        logger.info("Number of parameter: %.2fM" % (total/1e6))        
 
 def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     if modelname == 'vit':
         model = build_vit(num_class, cfg, __factory_T_type, num_class_domain_wise)
         print('===========building vit===========')
-    elif modelname == 'local_attention_vit':
-        model = build_local_attention_vit(num_class, cfg, __factory_LAT_type)
-        print('===========building our local attention vit===========')
-    elif modelname == 'distill_vit':
-        model = build_distill_vit(num_class, cfg, __factory_T_type)
-        print('===========building distill vit===========')
-    elif modelname == 'prompt_vit':
-        model = build_prompt_vit(num_class, cfg, __factory_PT_type)
-        print('===========building prompt vit===========')
-    elif modelname == 'mix_vit':
-        model = build_mix_vit(num_class, cfg, __factory_PT_type, num_class_domain_wise)
-        print('===========building mix vit===========')
-    elif modelname == 'XDED_vit':
-        model = build_vit(num_class, cfg, __factory_T_type)
-        print('===========building XDED vit===========')
-    elif modelname == 'mem_vit':
-        model = build_memory_cls_vit(num_class, cfg, __factory_T_type)
-    elif modelname == 'mem_tri_vit':
-        model = build_mix_vit(num_class, cfg, __factory_PT_type)
-        print('===========building mem tri mix vit===========')
-    # elif modelname == 'mask_vit':
-    #     model = build_mask_vit(num_class, cfg, __factory_T_type)
-    #     print('===========building mask vit===========')
-    # elif modelname == 'mae':
-    #     model = build_mae(num_class, cfg, __factory_T_type)
-    #     print('===========building mae===========')
-    # elif modelname == 'DG_ssl_vit':
-    #     model = build_DG_ssl_vit(num_class, cfg, __factory_T_type)
-    #     print('===========building ssl vit===========')
-    # elif modelname == 'color_vit':
-    #     model = build_DG_color_vit(num_class, cfg, __factory_T_type)
-    #     print('===========building color vit===========')
-    # elif modelname == 'rotate_vit':
-    #     model = build_DG_rotation_vit(num_class, cfg, __factory_T_type)
-    #     print('===========building rotate vit===========')
-    elif modelname == 'mix_resnet':
-        model = build_mix_cnn(modelname, num_class, cfg, num_class_domain_wise)
-    elif modelname == 'mix_ibnnet50a':
-        model = build_mix_cnn(modelname, num_class, cfg, num_class_domain_wise)
-    elif modelname == 'mix_ibnnet50b':
-        model = build_mix_cnn(modelname, num_class, cfg, num_class_domain_wise)
-    elif modelname == 'llava_vit':
-        model = build_llava_vit(num_class, cfg)
+    elif modelname == 'vit':
+        model = build_diffusion_reid(num_class, cfg, __factory_T_type, num_class_domain_wise)
+        print('===========building vit===========')
     else:
         model = Backbone(modelname, num_class, cfg, num_class_domain_wise)
         print('===========building ResNet===========')

@@ -24,13 +24,6 @@ _root = os.getenv("REID_DATASETS", "/home/liyuke/data")
 
 
 def build_reid_train_loader(cfg):
-    # gettrace = getattr(sys, 'gettrace', None)
-    # if gettrace():
-    #     print('*'*100)
-    #     print('Hmm, Big Debugger is watching me')
-    #     print('*'*100)
-    #     num_workers = 0
-    # else:
     num_workers = cfg.DATALOADER.NUM_WORKERS
 
     train_transforms = build_transforms(cfg, is_train=True, is_fake=False)
@@ -77,7 +70,7 @@ def build_reid_train_loader(cfg):
     cfg.DATASETS.NUM_DOMAINS = num_domains
     cfg.freeze()
 
-    train_loader, centers, model = make_sampler(
+    train_loader = make_sampler(
         train_set=train_set,
         num_batch=cfg.SOLVER.IMS_PER_BATCH,
         num_instance=cfg.DATALOADER.NUM_INSTANCE,
@@ -89,8 +82,7 @@ def build_reid_train_loader(cfg):
         train_pids=train_pids,
         cfg = cfg)
 
-
-    return train_loader, num_domains, train_pids, centers, model
+    return train_loader, num_domains, train_pids
 
 
 def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None, split_id=None):
@@ -198,34 +190,7 @@ def fast_batch_collator(batched_inputs):
 def make_sampler(train_set, num_batch, num_instance, num_workers,
                  mini_batch_size, drop_last=True, flag1=True, flag2=True, seed=None, train_pids=None, cfg=None):
 
-    #### center loss initiation
-    num_classes = 0
-    if isinstance(train_pids, list):
-        for i in train_pids:
-            num_classes += i
-    else:
-        num_classes = train_pids
-    center_criterion = CenterLoss(num_classes=num_classes, feat_dim=cfg.MODEL.DIM)
-    from model import make_model
-    model = make_model(cfg, modelname=cfg.MODEL.NAME, num_class=num_classes, num_class_domain_wise=train_pids)
-    test_transforms = build_transforms(cfg, is_train=False)
-    if cfg.SOLVER.RESUME:
-        model.load_param(cfg.SOLVER.RESUME_PATH)
-
-    if cfg.DATALOADER.SAMPLER == 'center_hard_sampler':
-        data_sampler = HardNegetiveSampler(cfg=cfg,centers=center_criterion.centers,
-                                            train_set=train_set,
-                                            batch_size=mini_batch_size, num_pids=train_pids,model=model,
-                                            transform=test_transforms)
-    elif cfg.DATALOADER.SAMPLER == 'graph_sampler':
-        
-        cfg.defrost()
-        cfg.DATASETS.NUM_DOMAINS = len(cfg.DATASETS.TRAIN)
-        cfg.freeze()
-        data_sampler = samplers.GraphSampler(train_set.img_items,
-                                            model, mini_batch_size, num_instance,
-                                            transform=test_transforms)
-    elif cfg.DATALOADER.SAMPLER == 'single_domain':
+    if cfg.DATALOADER.SAMPLER == 'single_domain':
         data_sampler = samplers.DomainIdentitySampler(train_set.img_items,
                                                       mini_batch_size, num_instance,train_pids)
     elif flag1:
@@ -241,4 +206,4 @@ def make_sampler(train_set, num_batch, num_instance, num_workers,
         batch_sampler=batch_sampler,
         collate_fn=fast_batch_collator,
     )
-    return train_loader, center_criterion, model
+    return train_loader

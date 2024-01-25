@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from .vit_pytorch import norm_dict
 
 try:
     import os, sys
@@ -532,7 +531,7 @@ class SwinTransformer(nn.Module):
                  norm_name='LN', ape=False, patch_norm=True,
                  use_checkpoint=False, fused_window_process=False, **kwargs):
         super().__init__()
-        norm_layer = norm_dict[norm_name]
+        norm_layer = nn.LayerNorm
         self.num_classes = num_classes
         self.num_layers = len(depths)
         self.embed_dim = embed_dim

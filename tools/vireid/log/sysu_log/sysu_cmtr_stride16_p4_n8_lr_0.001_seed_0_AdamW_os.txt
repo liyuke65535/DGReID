@@ -1,4 +1,0 @@
-[2023-11-19 15:19:20] ==========
-Args:Namespace(arch='resnet50', batch_size=8, dataset='sysu', erasing_p=0.5, gpu='0', img_h=256, img_w=128, lambda_1=0.8, lambda_2=0.01, log_path='log/', lr=0.001, margin=0.3, mode='all', model_path='save_model/', num_pos=4, optim='AdamW', resume='', save_epoch=20, seed=0, test_batch=4, test_only=False, trial=2, vis_log_path='log/vis_log/', workers=4)
-==========[2023-11-19 15:19:20] 
-[2023-11-19 15:19:20] ==> Loading data..[2023-11-19 15:19:20] 
