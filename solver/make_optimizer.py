@@ -1,9 +1,9 @@
 import torch
 from .sam import SAM
 
-def make_optimizer(cfg, img_extractor, unet, center_criterion):
+def make_optimizer(cfg, model, center_criterion):
     params = []
-    for key, value in img_extractor.named_parameters():
+    for key, value in model.named_parameters():
         if not value.requires_grad:
             continue
         lr = cfg.SOLVER.BASE_LR
@@ -18,11 +18,6 @@ def make_optimizer(cfg, img_extractor, unet, center_criterion):
 
         params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-    for key, value in unet.named_parameters():
-        if not value.requires_grad:
-            continue
-        weight_decay = cfg.SOLVER.WEIGHT_DECAY
-        params += [{"params": [value], "lr": 1e-5, "weight_decay": weight_decay}]
 
     if cfg.SOLVER.OPTIMIZER_NAME == 'SGD':
         optimizer = torch.optim.SGD(params, momentum=cfg.SOLVER.MOMENTUM)

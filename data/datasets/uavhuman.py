@@ -18,9 +18,9 @@ from ..datasets import DATASET_REGISTRY
 @DATASET_REGISTRY.register()
 class UAVHuman(ImageDataset):
     dataset_dir = "uavhuman-reid"
+    dataset_name = "uavhuman"
     
     def __init__(self, root='./data', verbose=True, **kwargs):
-        super(UAVHuman, self).__init__()
         self.dataset_dir = osp.join(root, self.dataset_dir)
         self.train_dir = osp.join(self.dataset_dir, 'bounding_box_train')
         
@@ -31,11 +31,11 @@ class UAVHuman(ImageDataset):
 
         self._check_before_run()
 
-        train = self._process_dir(self.train_dir, relabel=True)
+        train = self._process_dir(self.train_dir, is_train=True)
         
         # """Comment for Competition Splits
-        query = self._process_dir(self.query_dir, relabel=False)
-        gallery = self._process_dir(self.gallery_dir, relabel=False)
+        query = self._process_dir(self.query_dir, is_train=False)
+        gallery = self._process_dir(self.gallery_dir, is_train=False)
         # """
 
         # if verbose:
@@ -54,12 +54,13 @@ class UAVHuman(ImageDataset):
         self.gallery = gallery
         # """
 
-        self.num_train_pids, self.num_train_imgs, self.num_train_cams = self.get_imagedata_info(self.train)
+        # self.num_train_pids, self.num_train_imgs, self.num_train_cams = self.get_imagedata_info(self.train)
         
         # """Comment for Competition Splits
-        self.num_query_pids, self.num_query_imgs, self.num_query_cams = self.get_imagedata_info(self.query)
-        self.num_gallery_pids, self.num_gallery_imgs, self.num_gallery_cams = self.get_imagedata_info(self.gallery)
+        # self.num_query_pids, self.num_query_imgs, self.num_query_cams = self.get_imagedata_info(self.query)
+        # self.num_gallery_pids, self.num_gallery_imgs, self.num_gallery_cams = self.get_imagedata_info(self.gallery)
         # """
+        super(UAVHuman, self).__init__(train, query,gallery, **kwargs)
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
@@ -75,7 +76,7 @@ class UAVHuman(ImageDataset):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
         """
 
-    def _process_dir(self, dir_path, relabel=False):
+    def _process_dir(self, dir_path, is_train=True):
         img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
         pattern_pid = re.compile(r'P([-\d]+)S([-\d]+)')
         pattern_camid = re.compile(r'A([-\d]+)R([-\d])_([-\d]+)_([-\d]+)')
@@ -96,7 +97,7 @@ class UAVHuman(ImageDataset):
                 continue
 
             pid_container.add(pid)
-        pid2label = {pid: label for label, pid in enumerate(pid_container)}
+        # pid2label = {pid: label for label, pid in enumerate(pid_container)}
 
         dataset = []
         for img_path in img_paths:
@@ -110,7 +111,9 @@ class UAVHuman(ImageDataset):
                 camid_part1, _, _, camid_part2 = pattern_camid.search(fname).groups()
                 camid = int(camid_part1 + camid_part2)
             if pid == -1: continue  # junk images are just ignored
-            if relabel: pid = pid2label[pid]
+            if is_train:
+                pid = self.dataset_name + "_" + str(pid)
+            # if relabel: pid = pid2label[pid]
             dataset.append((img_path, pid, camid))
 
         return dataset

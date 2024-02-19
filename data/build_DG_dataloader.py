@@ -20,9 +20,6 @@ from .common import CommDataset
 from .datasets import DATASET_REGISTRY
 from .transforms import build_transforms
 
-_root = os.getenv("REID_DATASETS", "/home/liyuke/data")
-
-
 def build_reid_train_loader(cfg):
     num_workers = cfg.DATALOADER.NUM_WORKERS
 
@@ -34,6 +31,7 @@ def build_reid_train_loader(cfg):
     # load datasets
     train_pids = []
     domain_names = []
+    _root = cfg.DATASETS.ROOT_DIR
     for d in cfg.DATASETS.TRAIN:
         if d == 'CUHK03_NP':
             dataset = DATASET_REGISTRY.get('CUHK03')(root=_root, cuhk03_labeled=False)
@@ -87,7 +85,7 @@ def build_reid_train_loader(cfg):
 
 def build_reid_test_loader(cfg, dataset_name, opt=None, flag_test=True, shuffle=False, only_gallery=False, only_query=False, eval_time=False, bs=None, split_id=None):
     test_transforms = build_transforms(cfg, is_train=False)
-
+    _root = cfg.DATASETS.ROOT_DIR
     if opt is None:
         if split_id: ### for 4 small target domains only (viper...)
             dataset = DATASET_REGISTRY.get(dataset_name)(root=_root, split_id=split_id)
