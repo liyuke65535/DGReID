@@ -13,6 +13,7 @@ import re
 import os.path as osp
 
 from .bases import ImageDataset
+from ..datasets import DATASET_REGISTRY
 
 @DATASET_REGISTRY.register()
 class UAVHuman(ImageDataset):
