@@ -43,6 +43,7 @@ from .vehicleid import VehicleID, SmallVehicleID, MediumVehicleID, LargeVehicleI
 from .veriwild import VeRiWild, SmallVeRiWild, MediumVeRiWild, LargeVeRiWild
 
 from .PACS import PACS
+from .uavhuman import UAVHuman
 
 
 
