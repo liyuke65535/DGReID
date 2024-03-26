@@ -24,13 +24,7 @@ def ori_vit_do_train_with_amp(cfg,
              optimizer_center,
              scheduler,
              loss_fn,
-             num_query, local_rank,
-             patch_centers = None,
-             pc_criterion= None,
-             train_dir=None,
-             num_pids=None,
-             memories=None,
-             sour_centers=None):
+             num_query, local_rank,):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
@@ -53,12 +47,8 @@ def ori_vit_do_train_with_amp(cfg,
 
     loss_meter = AverageMeter()
     loss_id_meter = AverageMeter()
-    loss_id_distinct_meter = AverageMeter()
     loss_tri_meter = AverageMeter()
-    loss_sct_meter = AverageMeter()
     loss_center_meter = AverageMeter()
-    loss_xded_meter = AverageMeter()
-    loss_tri_hard_meter = AverageMeter()
     acc_meter = AverageMeter()
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
@@ -75,43 +65,17 @@ def ori_vit_do_train_with_amp(cfg,
         start_time = time.time()
         loss_meter.reset()
         loss_id_meter.reset()
-        loss_id_distinct_meter.reset()
         loss_tri_meter.reset()
-        loss_sct_meter.reset()
         loss_center_meter.reset()
-        loss_xded_meter.reset()
-        loss_tri_hard_meter.reset()
         acc_meter.reset()
         evaluator.reset()
         scheduler.step(epoch)
-        model.train()
-        
-        ##### for fixed BN test
-        if cfg.MODEL.FIXED_RES_BN:
-            if 'res' in cfg.MODEL.NAME or 'ibn' in cfg.MODEL.NAME:
-                for name, mod in model.base.named_modules():
-                    if 'bn' in name:
-                        mod.eval()
-                        # totally freezed BN
-                        # mod.weight.requires_grad_(False)
-                        # mod.bias.requires_grad_(False)
-                print("====== freeze BNs ======")
-            else:
-                for name, mod in model.base.named_modules():
-                    if 'norm' in name:
-                        mod.eval()
-                        # totally freezed LN
-                        mod.weight.requires_grad_(False)
-                        mod.bias.requires_grad_(False)
-                print("====== freeze LNs ======")
-            
+        model.train()            
         
         for n_iter, informations in enumerate(train_loader):
             img = informations['images'].to(device)
-            # img = MixStyle_2d()(img) #### test
             vid = informations['targets'].to(device)
             target_cam = informations['camid'].to(device)
-            # ipath = informations['img_path']
             ori_label = informations['ori_label'].to(device)
             t_domains = informations['others']['domains'].to(device)
 
@@ -126,63 +90,43 @@ def ori_vit_do_train_with_amp(cfg,
             targets = torch.zeros((bs, classes)).scatter_(1, target.unsqueeze(1).data.cpu(), 1).to(device)
             model.to(device)
             with amp.autocast(enabled=True):
-                # score, feat, target, score_, loss_tri_hard = model(img, target, t_domains)
-                loss_tri_hard = torch.tensor(0.,device=device)
                 score, feat = model(img)
                 ### id loss
                 log_probs = nn.LogSoftmax(dim=1)(score[:bs])
                 targets = 0.9 * targets + 0.1 / classes # label smooth
                 loss_id = (- targets * log_probs).mean(0).sum()
-                # loss_id = torch.tensor(0.0,device=device) ####### for test
 
-                #### id loss for each domain
-                loss_id_distinct = torch.tensor(0.0, device=device)
+                # #### id loss for each domain
+                # loss_id_distinct = []
                 # for i,s in enumerate(score_):
                 #     if s is None: continue
                 #     idx = torch.nonzero(t_domains==i).squeeze()
                 #     log_probs = nn.LogSoftmax(1)(s)
                 #     label = torch.zeros((len(idx), num_pids[i])).scatter_(1, ori_label[idx].unsqueeze(1).data.cpu(), 1).to(device)
                 #     label = 0.9 * label + 0.1 / num_pids[i] # label smooth
-                #     loss_id_distinct += (- label * log_probs).mean(0).sum()
+                #     loss_id_distinct.append((- label * log_probs).mean(0).sum())
+                # loss_id = sum(loss_id_distinct)/len(score_)
 
                 #### triplet loss
-                # target = targets.max(1)[1] ###### for mixup
                 N = feat.shape[0]
-                dist_mat = euclidean_dist(feat, feat)[:bs]
-                target_new = torch.cat([target,-torch.ones([N-bs], dtype=target.dtype, device=device)], dim=0)
-                is_pos = target_new.expand(N, N).eq(target_new.expand(N, N).t())
-                is_neg = target_new.expand(N, N).ne(target_new.expand(N, N).t())
+                dist_mat = euclidean_dist(feat, feat)
+                is_pos = target.expand(N, N).eq(target.expand(N, N).t())
+                is_neg = target.expand(N, N).ne(target.expand(N, N).t())
                 dist_ap, relative_p_inds = torch.max(
                     dist_mat[is_pos[:bs]].contiguous().view(bs, -1), 1, keepdim=True)
                 dist_an, relative_n_inds = torch.min(
                     dist_mat[is_neg[:bs]].contiguous().view(bs, -1), 1, keepdim=True)
                 y = dist_an.new().resize_as_(dist_an).fill_(1)
                 loss_tri = nn.SoftMarginLoss()(dist_an - dist_ap, y)
-                # loss_tri = torch.tensor(0.0, device=device)
-
-                #### scatter loss
-                # styles = torch.arange(16).repeat(4).to(device)
-                # loss_sct = domain_SCT_loss(feat, styles)
-                loss_sct = torch.tensor(0.0, device=device)
 
                 #### center loss
                 if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                     loss_center = center_criterion(feat, target)
                 else:
                     loss_center = torch.tensor(0.0, device=device)
-                #### XDED loss
-                if cfg.MODEL.DISTILL.DO_XDED and epoch > 5:
-                    probs = nn.Softmax(dim=1)(score / 0.2) # tao
-                    probs_mean = probs.reshape(bs//num_ins,num_ins,classes).mean(1,True)
-                    probs_xded = probs_mean.repeat(1,num_ins,1).view(-1,classes).detach()
-                    loss_xded = (- probs_xded * log_probs).mean(0).sum()
-                else:
-                    loss_xded = torch.tensor(0.0, device=device)
 
-                loss = loss_id + loss_tri + loss_id_distinct\
+                loss = loss_id + loss_tri + \
                     + center_weight * loss_center\
-                    + 1.0 * loss_xded + loss_tri_hard\
-                    + loss_sct # lam
 
             scaler.scale(loss).backward()
 
@@ -201,22 +145,17 @@ def ori_vit_do_train_with_amp(cfg,
 
             loss_meter.update(loss.item(), bs)
             loss_id_meter.update(loss_id.item(), bs)
-            loss_id_distinct_meter.update(loss_id_distinct.item(), bs)
             loss_tri_meter.update(loss_tri.item(), bs)
-            loss_sct_meter.update(loss_sct.item(), bs)
             loss_center_meter.update(center_weight*loss_center.item(), bs)
-            loss_xded_meter.update(loss_xded.item(), bs)
-            loss_tri_hard_meter.update(loss_tri_hard.item(), bs)
             acc_meter.update(acc, 1)
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, id_dis:{:.3f}, tri:{:.3f}, sct:{:.3f}, tri_hard:{:.3f}, cen:{:.3f}, xded:{:.3f} Acc: {:.3f}, Base Lr: {:.2e}"
+                logger.info("Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, id:{:.3f}, tri:{:.3f}, cen:{:.3f}, Acc: {:.3f}, Base Lr: {:.2e}"
                 .format(epoch, n_iter+1, len(train_loader),
                 loss_meter.avg,
-                loss_id_meter.avg, loss_id_distinct_meter.avg, loss_tri_meter.avg, loss_sct_meter.avg,
-                loss_tri_hard_meter.avg, loss_center_meter.avg, loss_xded_meter.avg,
-                acc_meter.avg, scheduler._get_lr(epoch)[0]))
+                loss_id_meter.avg, loss_tri_meter.avg,
+                loss_center_meter.avg, acc_meter.avg, scheduler._get_lr(epoch)[0]))
                 tbWriter.add_scalar('train/loss', loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
 

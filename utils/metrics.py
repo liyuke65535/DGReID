@@ -1,9 +1,8 @@
-from re import T
-from time import time
 import torch
 import numpy as np
 import os
 from utils.reranking import re_ranking
+from .rank_cylib.rank_cy import evaluate_cy
 
 def normalize(x, axis=-1):
     """Normalizing to unit length along the specified dimension.
@@ -44,24 +43,22 @@ def cosine_sim(qf, gf):
     return dist_mat
 
 
-def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
+def eval_py(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
     """Evaluation with market1501 metric
         Key: for each query identity, its gallery images from the same camera view are discarded.
         """
     num_q, num_g = distmat.shape
-    # distmat g
-    #    q    1 3 2 4
-    #         4 1 2 3
     if num_g < max_rank:
         max_rank = num_g
-        print("Note: number of gallery samples is quite small, got {}".format(num_g))
+        print("Note: number of gallery samples is quite small, got {}".format(
+            num_g))
     indices = np.argsort(distmat, axis=1)
-    #  0 2 1 3
-    #  1 2 3 0
     matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int32)
+
     # compute cmc curve for each query
     all_cmc = []
     all_AP = []
+    all_INP = []
     num_valid_q = 0.  # number of valid query
     for q_idx in range(num_q):
         # get query pid and camid
@@ -69,7 +66,7 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
         q_camid = q_camids[q_idx]
 
         # remove gallery samples that have the same pid and camid with query
-        order = indices[q_idx]  # select one row
+        order = indices[q_idx]
         remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
         keep = np.invert(remove)
 
@@ -81,6 +78,12 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
             continue
 
         cmc = orig_cmc.cumsum()
+
+        pos_idx = np.where(orig_cmc == 1)
+        max_pos_idx = np.max(pos_idx)
+        inp = cmc[max_pos_idx] / (max_pos_idx + 1.0)
+        all_INP.append(inp)
+
         cmc[cmc > 1] = 1
 
         all_cmc.append(cmc[:max_rank])
@@ -90,9 +93,7 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
         # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
         num_rel = orig_cmc.sum()
         tmp_cmc = orig_cmc.cumsum()
-        #tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
-        y = np.arange(1, tmp_cmc.shape[0] + 1) * 1.0
-        tmp_cmc = tmp_cmc / y
+        tmp_cmc = [x / (i + 1.) for i, x in enumerate(tmp_cmc)]
         tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
         AP = tmp_cmc.sum() / num_rel
         all_AP.append(AP)
@@ -102,8 +103,9 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
     all_cmc = np.asarray(all_cmc).astype(np.float32)
     all_cmc = all_cmc.sum(0) / num_valid_q
     mAP = np.mean(all_AP)
+    mINP = np.mean(all_INP)
 
-    return all_cmc, mAP
+    return all_cmc, mAP, mINP
 
 
 class R1_mAP_eval():
@@ -148,7 +150,12 @@ class R1_mAP_eval():
         else:
             # print('=> Computing DistMat with euclidean_distance')
             distmat = euclidean_dist(qf, gf)
-        cmc, mAP = eval_func(distmat, q_pids, g_pids, q_camids, g_camids)
+        if True:
+            print("Using cython evaluation (very fast): ")
+            cmc, mAP, mINP = evaluate_cy(distmat, q_pids, g_pids, q_camids, g_camids, 50)
+        else:
+            print("Using python evaluation (relatively slow): ")
+            cmc, mAP, mINP = eval_py(distmat, q_pids, g_pids, q_camids, g_camids)
 
         return cmc, mAP, distmat, self.pids, self.camids, qf, gf
 

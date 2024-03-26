@@ -12,13 +12,6 @@ from yacs.config import CfgNode as CN
 
 _C = CN()
 # -----------------------------------------------------------------------------
-# META
-# -----------------------------------------------------------------------------
-# _C.META = CN()
-
-# _C.META.DATA = CN()
-# _C.META.DATA.NAMES = ""
-# -----------------------------------------------------------------------------
 # MODEL
 # -----------------------------------------------------------------------------
 _C.MODEL = CN()
@@ -34,6 +27,8 @@ _C.MODEL.LAST_STRIDE = 1
 _C.MODEL.DIM = 768
 # Path to pretrained model of backbone
 _C.MODEL.PRETRAIN_PATH = ""
+# if stem conv as transreid-sll
+_C.MODEL.STEM_CONV = False
 
 # Use ImageNet pretrained model to initialize backbone or use self trained model to initialize the whole model
 # Options: 'imagenet' , 'self' , 'finetune'

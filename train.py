@@ -100,5 +100,4 @@ if __name__ == '__main__':
         scheduler,
         loss_func,
         num_query, args.local_rank,
-        num_pids = num_pids,
     )

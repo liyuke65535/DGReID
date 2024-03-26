@@ -88,38 +88,6 @@ def _cfg(url='', **kwargs):
         **kwargs
     }
 
-# for Part_Attention
-def generate_2d_mask(H=16, W=8, left=0, top=0, width=8, height=8, part=-1, cls_label=True, device='cuda', p_num=3):
-    H, W, left, top, width, height = \
-        int(H), int(W), int(left), int(top), int(width), int(height)
-    assert left + width <= W and top + height <= H
-    # l, w = sorted(random.sample(range(left, left + width + 1), 2))
-    # t, h = sorted(random.sample(range(top, top + height + 1), 2))
-    l,w,t,h = left, left+width, top, top+height ### for test
-    mask = torch.zeros([H, W], device=device)
-    mask[t : h + 1, l : w + 1] = 1
-    mask = mask.flatten(0)
-    mask_ = torch.zeros([len(mask) + p_num + 1], device=device)
-    mask_[p_num+1:] = mask
-    mask_[part] = 1
-    mask_[0] = 1 if cls_label else 0 ######### cls token
-    mask_ = mask_.unsqueeze(1) # N x 1
-    mask_ = mask_ @ mask_.t() # N x N
-    return mask_
-
-def generate_1d_mask(H=16, W=8, left=0, top=0, width=8, height=8, part=-1):
-    H, W, left, top, width, height = \
-        int(H), int(W), int(left), int(top), int(width), int(height)
-    assert left + width <= W and top + height <= H
-    l, w = sorted(random.sample(range(left, left + width + 1), 2))
-    t, h = sorted(random.sample(range(top, top + height + 1), 2))
-    mask = torch.zeros([H, W])
-    mask[t : h + 1, l : w + 1] = 1
-    mask = mask.flatten(0)
-    mask_ = torch.zeros([len(mask) + 4])
-    mask_[4:] = mask
-    mask_[part] = 1
-    return mask_
 
 default_cfgs = {
     # patch models
@@ -198,40 +166,6 @@ class Attention(nn.Module):
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
-
-'''
-our local attention
-'''
-class Local_Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
-        super().__init__()
-        self.num_heads = num_heads
-        head_dim = dim // num_heads
-        # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
-        self.scale = qk_scale or head_dim ** -0.5
-
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(proj_drop)
-
-    def forward(self, x, mask=None):
-        B, N, C = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        if mask is not None: # add mask to q k v
-            mask = mask.to(q.device.type)
-            attn = attn.masked_fill(~mask.bool(), torch.tensor(-1e3, dtype=torch.float16)) # mask
-        attn = attn.softmax(dim=-1)
-        if mask is not None:
-            attn = torch.mul(attn, mask) ###
         attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
@@ -441,9 +375,6 @@ class TransReID(nn.Module):
             self.patch_embed = PatchEmbed_overlap(
                 img_size=img_size, patch_size=patch_size, stride_size=stride_size, in_chans=in_chans,
                 embed_dim=embed_dim)
-        # MoCo V3
-        # self.patch_embed.proj.weight.requires_grad = False
-        # self.patch_embed.proj.bias.requires_grad = False
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -455,15 +386,6 @@ class TransReID(nn.Module):
 
         self.pos_drop = nn.Dropout(p=drop_rate)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
-
-        self.INs = nn.ModuleList([
-            nn.InstanceNorm1d(embed_dim)\
-            for _ in range(depth)
-        ])
-
-        self.ins_norm = instancenorm_1d(embed_dim)
-        self.lay_norm = layernorm_1d(embed_dim)
-        self.batch_norm = batchnorm_1d(embed_dim)
 
         self.blocks = nn.ModuleList([
             Block(
@@ -568,23 +490,6 @@ def resize_pos_embed(posemb, posemb_new, hight, width):
     posemb_grid = posemb_grid.reshape(1, gs_old, gs_old, -1).permute(0, 3, 1, 2)
     posemb_grid = F.interpolate(posemb_grid, size=(hight, width), mode='bilinear')
     posemb_grid = posemb_grid.permute(0, 2, 3, 1).reshape(1, hight * width, -1)
-    posemb = torch.cat([posemb_token, posemb_grid], dim=1)
-    return posemb
-
-def resize_pos_embed_part_vit(posemb, part_num, posemb_new, hight, width):
-    # Rescale the grid of position embeddings when loading from state_dict. Adapted from
-    # https://github.com/google-research/vision_transformer/blob/00883dd691c63a6830751563748663526e811cee/vit_jax/checkpoint.py#L224
-    ntok_new = posemb_new.shape[1]
-
-    posemb_token, posemb_grid = posemb[:, :1], posemb[0, 1:]
-    ntok_new -= 1 + part_num
-
-    gs_old = int(math.sqrt(len(posemb_grid)))
-    print('Resized position embedding from size:{} to size: {} with height:{} width: {}'.format(posemb.shape, posemb_new.shape, hight, width))
-    posemb_grid = posemb_grid.reshape(1, gs_old, gs_old, -1).permute(0, 3, 1, 2)
-    posemb_grid = F.interpolate(posemb_grid, size=(hight, width), mode='bilinear')
-    posemb_grid = posemb_grid.permute(0, 2, 3, 1).reshape(1, hight * width, -1)
-    posemb_token = torch.cat([posemb_token for i in range(part_num+1)],dim=1)
     posemb = torch.cat([posemb_token, posemb_grid], dim=1)
     return posemb
 

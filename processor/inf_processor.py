@@ -1,5 +1,6 @@
 import logging
 import time
+from prettytable import PrettyTable
 
 import torch
 import torch.nn as nn
@@ -55,10 +56,13 @@ def do_inference(cfg,
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
     if iflog:
-        logger.info("Validation Results ")
-        logger.info("mAP: {:.1%}".format(mAP))
-        for r in [1, 5, 10]:
-            logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+        table = PrettyTable(["task", "mAP", "R1", "R5", "R10"])
+        table.add_row(['Reid', mAP, cmc[0],cmc[4], cmc[9]])
+        table.custom_format["R1"] = lambda f, v: f"{100*v:.2f}"
+        table.custom_format["R5"] = lambda f, v: f"{100*v:.2f}"
+        table.custom_format["R10"] = lambda f, v: f"{100*v:.2f}"
+        table.custom_format["mAP"] = lambda f, v: f"{100*v:.2f}"
+        logger.info('\n' + str(table))
         logger.info("total inference time: {:.2f}".format(time.time() - t0))
     return cmc, mAP
 
@@ -81,13 +85,21 @@ def do_inference_multi_targets(cfg,
         cmc_all += cmc_avg
         mAP_all += mAP_avg
         logger.info("===== Avg Results for 10 splits of {} =====".format(testname))
-        logger.info("mAP: {:.1%}".format(mAP_avg))
-        for r in [1, 5, 10]:
-            logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_avg[r - 1]))
+        table = PrettyTable(["task", "mAP", "R1", "R5", "R10"])
+        table.add_row(['Reid', mAP_avg, cmc_avg[0],cmc_avg[4], cmc_avg[9]])
+        table.custom_format["R1"] = lambda f, v: f"{100*v:.2f}"
+        table.custom_format["R5"] = lambda f, v: f"{100*v:.2f}"
+        table.custom_format["R10"] = lambda f, v: f"{100*v:.2f}"
+        table.custom_format["mAP"] = lambda f, v: f"{100*v:.2f}"
+        logger.info('\n' + str(table))
 
     logger.info("===== Mean Results on 4 target datasets =====")
-    logger.info("mAP: {:.1%}".format(mAP_all / len(cfg.DATASETS.TEST)))
-    for r in [1, 5, 10]:
-            logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_all[r - 1] / len(cfg.DATASETS.TEST)))
+    table = PrettyTable(["task", "mAP", "R1", "R5", "R10"])
+    table.add_row(['Reid',mAP_all/len(cfg.DATASETS.TEST),cmc_all[0]/len(cfg.DATASETS.TEST),cmc_all[4]/len(cfg.DATASETS.TEST),cmc_all[9]/len(cfg.DATASETS.TEST)])
+    table.custom_format["R1"] = lambda f, v: f"{100*v:.2f}"
+    table.custom_format["R5"] = lambda f, v: f"{100*v:.2f}"
+    table.custom_format["R10"] = lambda f, v: f"{100*v:.2f}"
+    table.custom_format["mAP"] = lambda f, v: f"{100*v:.2f}"
+    logger.info('\n' + str(table))
 
     return cmc_all, mAP_all
