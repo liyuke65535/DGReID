@@ -107,3 +107,189 @@ class MSMT17(ImageDataset):
             data.append((img_path, pid, camid))
 
         return data
+    
+
+@DATASET_REGISTRY.register()
+class MSMT17_1(ImageDataset):
+    """MSMT17.
+    Reference:
+        Wei et al. Person Transfer GAN to Bridge Domain Gap for Person Re-Identification. CVPR 2018.
+    URL: `<http://www.pkuvmc.com/publications/msmt17.html>`_
+
+    Dataset statistics:
+        - identities: 4101.
+        - images: 32621 (train) + 11659 (query) + 82161 (gallery).
+        - cameras: 15.
+    """
+    # dataset_dir = 'MSMT17_V2'
+    dataset_url = None
+    dataset_name = 'MSMT17'
+
+    def __init__(self, root='datasets', **kwargs):
+        self.root = root
+        self.dataset_dir = self.root
+
+        has_main_dir = False
+        for main_dir in VERSION_DICT:
+            if osp.exists(osp.join(self.dataset_dir, main_dir)):
+                train_dir = VERSION_DICT[main_dir][TRAIN_DIR_KEY]
+                test_dir = VERSION_DICT[main_dir][TEST_DIR_KEY]
+                has_main_dir = True
+                break
+        assert has_main_dir, 'Dataset folder not found'
+
+        self.train_dir = osp.join(self.dataset_dir, main_dir, train_dir)
+        self.test_dir = osp.join(self.dataset_dir, main_dir, test_dir)
+        self.list_train_path = osp.join(self.dataset_dir, main_dir, 'list_train.txt')
+        self.list_val_path = osp.join(self.dataset_dir, main_dir, 'list_val.txt')
+        self.list_query_path = osp.join(self.dataset_dir, main_dir, 'list_query.txt')
+        self.list_gallery_path = osp.join(self.dataset_dir, main_dir, 'list_gallery.txt')
+
+        required_files = [
+            self.dataset_dir,
+            self.train_dir,
+            self.test_dir
+        ]
+        self.check_before_run(required_files)
+
+        trainset1, trainset2, trainset3 = self.process_dir_train(self.train_dir, self.list_train_path, [[0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14]])
+        query = self.process_dir(self.test_dir, self.list_query_path, is_train=False)
+        gallery = self.process_dir(self.test_dir, self.list_gallery_path, is_train=False)
+
+        num_train_pids = self.get_num_pids(trainset1+trainset2+trainset3)
+        query_tmp = []
+        for img_path, pid, camid in query:
+            query_tmp.append((img_path, pid+num_train_pids, camid))
+        del query
+        query = query_tmp
+
+        gallery_temp = []
+        for img_path, pid, camid in gallery:
+            gallery_temp.append((img_path, pid+num_train_pids, camid))
+        del gallery
+        gallery = gallery_temp
+
+        super(MSMT17_1, self).__init__(trainset1+trainset2+trainset3, query, gallery, **kwargs)
+
+    def process_dir_train(self, dir_path, list_path, cam_range=None):
+        with open(list_path, 'r') as txt:
+            lines = txt.readlines()
+
+        data = [[], [], []]
+        pids = [[], [], []]
+        for img_idx, img_info in enumerate(lines):
+            img_path, pid = img_info.split(' ')
+            pid = int(pid)  # no need to relabel
+            camid = int(img_path.split('_')[2]) - 1  # index starts from 0
+            img_path = osp.join(dir_path, img_path)
+            if cam_range is not None:
+                pid = self.dataset_name + "_" + str(pid)
+                if camid in cam_range[0] and pid not in (set(pids[1]) | set(pids[2])):
+                    pids[0].append(pid)
+                    data[0].append((img_path, pid, camid))
+                elif camid in cam_range[1] and pid not in (set(pids[0]) | set(pids[2])):
+                    pids[1].append(pid)
+                    data[1].append((img_path, pid, camid))
+                elif camid in cam_range[2] and pid not in (set(pids[0]) | set(pids[1])):
+                    pids[2].append(pid)
+                    data[2].append((img_path, pid, camid))
+        return data
+    
+    def process_dir(self, dir_path, list_path, is_train=True):
+        with open(list_path, 'r') as txt:
+            lines = txt.readlines()
+
+        data = []
+
+        for img_idx, img_info in enumerate(lines):
+            img_path, pid = img_info.split(' ')
+            pid = int(pid)  # no need to relabel
+            camid = int(img_path.split('_')[2]) - 1  # index starts from 0
+            img_path = osp.join(dir_path, img_path)
+            if is_train:
+                pid = self.dataset_name + "_" + str(pid)
+            data.append((img_path, pid, camid))
+
+        return data
+    
+
+@DATASET_REGISTRY.register()
+class MSMT17_2(ImageDataset):
+    """MSMT17.
+    Reference:
+        Wei et al. Person Transfer GAN to Bridge Domain Gap for Person Re-Identification. CVPR 2018.
+    URL: `<http://www.pkuvmc.com/publications/msmt17.html>`_
+
+    Dataset statistics:
+        - identities: 4101.
+        - images: 32621 (train) + 11659 (query) + 82161 (gallery).
+        - cameras: 15.
+    """
+    # dataset_dir = 'MSMT17_V2'
+    dataset_url = None
+    dataset_name = 'MSMT17'
+
+    def __init__(self, root='datasets', **kwargs):
+        self.root = root
+        self.dataset_dir = self.root
+
+        has_main_dir = False
+        for main_dir in VERSION_DICT:
+            if osp.exists(osp.join(self.dataset_dir, main_dir)):
+                train_dir = VERSION_DICT[main_dir][TRAIN_DIR_KEY]
+                test_dir = VERSION_DICT[main_dir][TEST_DIR_KEY]
+                has_main_dir = True
+                break
+        assert has_main_dir, 'Dataset folder not found'
+
+        self.train_dir = osp.join(self.dataset_dir, main_dir, train_dir)
+        self.test_dir = osp.join(self.dataset_dir, main_dir, test_dir)
+        self.list_train_path = osp.join(self.dataset_dir, main_dir, 'list_train.txt')
+        self.list_val_path = osp.join(self.dataset_dir, main_dir, 'list_val.txt')
+        self.list_query_path = osp.join(self.dataset_dir, main_dir, 'list_query.txt')
+        self.list_gallery_path = osp.join(self.dataset_dir, main_dir, 'list_gallery.txt')
+
+        required_files = [
+            self.dataset_dir,
+            self.train_dir,
+            self.test_dir
+        ]
+        self.check_before_run(required_files)
+
+        import random
+        train = self.process_dir(self.train_dir, self.list_train_path)
+        train = random.sample(train, 14700)
+        query = self.process_dir(self.test_dir, self.list_query_path, is_train=False)
+        gallery = self.process_dir(self.test_dir, self.list_gallery_path, is_train=False)
+
+        num_train_pids = self.get_num_pids(train)
+        query_tmp = []
+        for img_path, pid, camid in query:
+            query_tmp.append((img_path, pid+num_train_pids, camid))
+        del query
+        query = query_tmp
+
+        gallery_temp = []
+        for img_path, pid, camid in gallery:
+            gallery_temp.append((img_path, pid+num_train_pids, camid))
+        del gallery
+        gallery = gallery_temp
+
+        super(MSMT17_2, self).__init__(train, query, gallery, **kwargs)
+
+    def process_dir(self, dir_path, list_path, is_train=True):
+        with open(list_path, 'r') as txt:
+            lines = txt.readlines()
+
+        data = []
+
+        for img_idx, img_info in enumerate(lines):
+            img_path, pid = img_info.split(' ')
+            pid = int(pid)  # no need to relabel
+            camid = int(img_path.split('_')[2]) - 1  # index starts from 0
+            img_path = osp.join(dir_path, img_path)
+            if is_train:
+                pid = self.dataset_name + "_" + str(pid)
+            data.append((img_path, pid, camid))
+
+        return data
