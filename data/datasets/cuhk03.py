@@ -76,7 +76,10 @@ class CUHK03(ImageDataset):
         for i in range(3):
             for info in img_list[i]:
                 split_path = info[0].split('/')[-1].split('_')
-                pid = self.dataset_name + "_" + split_path[0] + "_" + split_path[1]
+                if i==0:
+                    pid = self.dataset_name + "_" + split_path[0] + "_" + split_path[1]
+                else:
+                    pid = int(split_path[0] + split_path[1])
                 camid = int(split_path[2])
                 return_sets[i].append([info[0], pid, camid])
 

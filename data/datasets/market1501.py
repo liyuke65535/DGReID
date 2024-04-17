@@ -212,12 +212,11 @@ class Market1501_2(ImageDataset):
         self.check_before_run(required_files)
 
         import random
-        range1, range2 = [0,1,2,3], [4,5]
-        train_source = self.process_dir(self.train_dir, cam_range=range1)
-        train_source = random.sample(train_source, 4000)
+        train_source = self.process_dir(self.train_dir, cam_range=[0,1,2,3,4,5])
+        train_source = random.sample(train_source, 7200)
         # train_source2 = self.process_dir(self.train_dir, cam_range=range2)
-        query = self.process_dir(self.query_dir, is_train=False, cam_range=range2)
-        gallery = self.process_dir(self.gallery_dir, is_train=False, cam_range=range2)
+        query = self.process_dir(self.query_dir, is_train=False)
+        gallery = self.process_dir(self.gallery_dir, is_train=False)
         if self.market1501_500k:
             gallery += self.process_dir(self.extra_gallery_dir, is_train=False)
 
