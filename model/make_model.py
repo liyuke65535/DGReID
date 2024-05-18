@@ -426,7 +426,8 @@ class build_vit(nn.Module):
         logger = logging.getLogger('reid.train')
         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
-
+class build_vim(nn.Module):
+    
 
 def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     if modelname == 'vit':
