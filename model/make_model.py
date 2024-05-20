@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+from model.backbones.models_mamba import VisionMamba, vim_small_patch16_stride8_224_bimambav2_final_pool_mean_abs_pos_embed_with_midclstok_div2
 from model.backbones.vit_pytorch import TransReID, deit_tiny_patch16_224_TransReID, resize_pos_embed, vit_base_patch32_224_TransReID, vit_large_patch16_224_TransReID
 import torch
 import torch.nn as nn
@@ -427,12 +428,105 @@ class build_vit(nn.Module):
         logger.info("Number of parameter: %.2fM" % (total/1e6))
 
 class build_vim(nn.Module):
-    
+    def __init__(self, num_classes, cfg, factory, num_cls_dom_wise=None):
+        super().__init__()
+        self.cfg = cfg
+        model_path = cfg.MODEL.PRETRAIN_PATH
+        
+        self.pretrain_choice = cfg.MODEL.PRETRAIN_CHOICE
+        self.cos_layer = cfg.MODEL.COS_LAYER
+        self.neck = cfg.MODEL.NECK
+        self.neck_feat = cfg.TEST.NECK_FEAT
+        if cfg.MODEL.TRANSFORMER_TYPE in in_plane_dict:
+            self.in_planes = in_plane_dict[cfg.MODEL.TRANSFORMER_TYPE]
+        else:
+            print("===== unknown transformer type =====")
+            self.in_planes = 768
+
+        print('using Transformer_type: vit as a backbone')
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.num_classes = num_classes
+
+        self.base = VisionMamba(
+            img_size=cfg.INPUT.SIZE_TRAIN,
+            stride=cfg.MODEL.STRIDE_SIZE,
+            drop_path_rate=cfg.MODEL.DROP_PATH,
+            drop_rate= cfg.MODEL.DROP_OUT,
+            attn_drop_rate=cfg.MODEL.ATT_DROP_RATE)
+
+        # self.model_path = model_path
+        # self.base.load_param(self.model_path)
+        # print('Loading pretrained model......from {}'.format(self.model_path))
+            
+        #### original one
+        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier.apply(weights_init_classifier)
+        self.bottleneck = nn.BatchNorm1d(self.in_planes)
+        self.bottleneck.bias.requires_grad_(False)
+        self.bottleneck.apply(weights_init_kaiming)
+
+        #### multi-domain head
+        if num_cls_dom_wise is not None:
+            self.classifiers = nn.ModuleList(
+                nn.Linear(self.in_planes, num_cls_dom_wise[i])\
+                    for i in range(len(num_cls_dom_wise))
+            )
+
+    def forward(self, x, domain=None):
+        x = self.base(x)
+        global_feat = x[:, 0]
+        feat = self.bottleneck(global_feat)
+        if self.training:
+            ### original
+            cls_score = self.classifier(feat)
+            return cls_score, global_feat
+
+            # #### multi-domain head
+            # cls_score = self.classifier(feat)
+            # cls_score_ = []
+            # for i in range(len(self.classifiers)):
+            #     if i not in domain:
+            #         cls_score_.append(None)
+            #         continue
+            #     idx = torch.nonzero(domain==i).squeeze()
+            #     cls_score_.append(self.classifiers[i](feat[idx]))
+            # return cls_score, global_feat, target, cls_score_
+
+        else:
+            return feat if self.neck_feat == 'after' else global_feat
+
+    def load_param(self, trained_path):
+        param_dict = torch.load(trained_path)
+        count = 0
+        for i in param_dict:
+            if 'classifier' in i: # drop classifier
+                continue
+            # if 'bottleneck' in i:
+            #     continue
+            if i in self.state_dict().keys():
+                self.state_dict()[i].copy_(param_dict[i])
+                count += 1
+        print('Loading trained model from {}\n Load {}/{} layers'.format(trained_path, count, len(self.state_dict())))
+
+    def load_param_finetune(self, model_path):
+        param_dict = torch.load(model_path)
+        for i in param_dict:
+            self.state_dict()[i].copy_(param_dict[i])
+        print('Loading pretrained model for finetuning from {}'.format(model_path))
+
+    def compute_num_params(self):
+        total = sum([param.nelement() for param in self.parameters()])
+        logger = logging.getLogger('reid.train')
+        logger.info("Number of parameter: %.2fM" % (total/1e6))
 
 def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
     if modelname == 'vit':
         model = build_vit(num_class, cfg, __factory_T_type, num_class_domain_wise)
         print('===========building vit===========')
+    elif modelname == 'vim':
+        model = build_vim(num_class, cfg, __factory_T_type, num_class_domain_wise)
+        print('===========building Vision Mamba===========')
     else:
         model = Backbone(modelname, num_class, cfg, num_class_domain_wise)
         print('===========building ResNet===========')
