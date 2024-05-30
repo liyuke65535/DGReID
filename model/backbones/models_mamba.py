@@ -17,17 +17,17 @@ import math
 
 from collections import namedtuple
 
-from mamba_ssm.modules.mamba_simple import Mamba
-from mamba_ssm.utils.generation import GenerationMixin
-from mamba_ssm.utils.hf import load_config_hf, load_state_dict_hf
+# from mamba_ssm.modules.mamba_simple import Mamba
+# from mamba_ssm.utils.generation import GenerationMixin
+# from mamba_ssm.utils.hf import load_config_hf, load_state_dict_hf
 
-from rope import *
-import random
+# from rope import *
+# import random
 
-try:
-    from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
-except ImportError:
-    RMSNorm, layer_norm_fn, rms_norm_fn = None, None, None
+# try:
+#     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
+# except ImportError:
+#     RMSNorm, layer_norm_fn, rms_norm_fn = None, None, None
 
 
 __all__ = [

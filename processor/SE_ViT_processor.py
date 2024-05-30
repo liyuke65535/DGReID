@@ -15,7 +15,7 @@ import torch.distributed as dist
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
 
-def ori_vit_do_train_with_amp(cfg,
+def se_vit_do_train_with_amp(cfg,
              model,
              center_criterion,
              train_loader,
@@ -70,7 +70,7 @@ def ori_vit_do_train_with_amp(cfg,
         acc_meter.reset()
         evaluator.reset()
         scheduler.step(epoch)
-        model.train()            
+        model.train()
         
         for n_iter, informations in enumerate(train_loader):
             img = informations['images'].to(device)
@@ -91,10 +91,17 @@ def ori_vit_do_train_with_amp(cfg,
             model.to(device)
             with amp.autocast(enabled=True):
                 score, feat = model(img)
-                ### id loss
-                log_probs = nn.LogSoftmax(dim=1)(score)
                 targets = 0.9 * targets + 0.1 / classes # label smooth
-                loss_id = (- targets * log_probs).mean(0).sum()
+                ### id loss
+                if isinstance(score, list):
+                    loss_id = []
+                    for s in score:
+                        log_probs = nn.LogSoftmax(dim=1)(score)
+                        loss_id.append((- targets * log_probs).mean(0).sum())
+                    loss_id = sum(loss_id)/ len(score)
+                else:
+                    log_probs = nn.LogSoftmax(dim=1)(score)
+                    loss_id = (- targets * log_probs).mean(0).sum()
 
                 # #### id loss for each domain
                 # loss_id_distinct = []

@@ -429,7 +429,7 @@ class build_vit(nn.Module):
 
 
 class build_SEViT(nn.Module):
-    def __init__(self, num_classes, cfg, factory, num_cls_dom_wise=None):
+    def __init__(self, num_classes, cfg, factory, num_cls_dom_wise=None, num_cls_tokens=2):
         super().__init__()
         self.cfg = cfg
         model_path = cfg.MODEL.PRETRAIN_PATH
@@ -470,6 +470,13 @@ class build_SEViT(nn.Module):
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
+        #### original one
+        self.classifier_2 = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier_2.apply(weights_init_classifier)
+        self.bottleneck_2 = nn.BatchNorm1d(self.in_planes)
+        self.bottleneck_2.bias.requires_grad_(False)
+        self.bottleneck_2.apply(weights_init_kaiming)
+
         #### multi-domain head
         if num_cls_dom_wise is not None:
             self.classifiers = nn.ModuleList(
@@ -481,10 +488,12 @@ class build_SEViT(nn.Module):
         x = self.base(x)
         global_feat = x[:, 0]
         feat = self.bottleneck(global_feat)
+        feat_2 = self.bottleneck_2(global_feat)
         if self.training:
             ### original
             cls_score = self.classifier(feat)
-            return cls_score, global_feat
+            cls_score_2 = self.classifier_2(feat_2)
+            return [cls_score, cls_score_2], global_feat
 
             # #### multi-domain head
             # cls_score = self.classifier(feat)
@@ -624,6 +633,9 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
         print('===========building vit===========')
     elif modelname == 'vim':
         model = build_vim(num_class, cfg, __factory_T_type, num_class_domain_wise)
+        print('===========building Vision Mamba===========')
+    elif modelname == 'se_vit':
+        model = build_SEViT(num_class, cfg, __factory_T_type, num_class_domain_wise)
         print('===========building Vision Mamba===========')
     else:
         model = Backbone(modelname, num_class, cfg, num_class_domain_wise)

@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 import random
 import torch
@@ -7,6 +8,7 @@ import numpy as np
 import argparse
 
 from config import cfg
+from processor.SE_ViT_processor import se_vit_do_train_with_amp
 from processor.ori_vit_processor_with_amp import ori_vit_do_train_with_amp
 from utils.logger import setup_logger
 from data.build_DG_dataloader import build_reid_train_loader, build_reid_test_loader
@@ -88,6 +90,20 @@ if __name__ == '__main__':
     optimizer, optimizer_center = make_optimizer(cfg, model, center_criterion)
 
     scheduler = create_scheduler(cfg, optimizer)
+
+    if cfg.MODEL.NAME == 'se_vit':
+        se_vit_do_train_with_amp(
+            cfg,
+            model,
+            center_criterion,
+            train_loader,
+            val_loader,
+            optimizer,
+            optimizer_center,
+            scheduler,
+            loss_func,
+            num_query, args.local_rank,
+        )
 
     ori_vit_do_train_with_amp(
         cfg,
