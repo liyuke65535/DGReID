@@ -636,7 +636,7 @@ def make_model(cfg, modelname, num_class, num_class_domain_wise=None):
         print('===========building Vision Mamba===========')
     elif modelname == 'se_vit':
         model = build_SEViT(num_class, cfg, __factory_T_type, num_class_domain_wise)
-        print('===========building Vision Mamba===========')
+        print('===========building se vit===========')
     else:
         model = Backbone(modelname, num_class, cfg, num_class_domain_wise)
         print('===========building ResNet===========')
